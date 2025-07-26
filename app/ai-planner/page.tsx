@@ -123,11 +123,12 @@ export default function AIPlanner() {
     try {
       const html2pdf = (await import('html2pdf.js')).default
       const opt = {
-        margin: 1,
+        margin: 0.5,
         filename: 'Indian_Fitness_Plan.pdf',
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
       }
       html2pdf().set(opt).from(planRef.current).save()
     } catch (error) {
@@ -369,7 +370,7 @@ export default function AIPlanner() {
                       </CardTitle>
                       <p className="text-gray-300 text-sm sm:text-base">Generated for {formData.name}</p>
                     </CardHeader>
-                    <CardContent className="space-y-4 sm:space-y-6 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
+                    <CardContent className="space-y-4 sm:space-y-6">
                       {/* Push Day */}
                       <div className="print-section">
                         <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Push Day Workout</h3>
@@ -384,6 +385,7 @@ export default function AIPlanner() {
                         </div>
                       </div>
 
+                      <div className="pdf-pagebreak" />
                       {/* Pull Day */}
                       <div className="print-section">
                         <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Pull Day Workout</h3>
@@ -398,6 +400,7 @@ export default function AIPlanner() {
                         </div>
                       </div>
 
+                      <div className="pdf-pagebreak" />
                       {/* Legs Day */}
                       <div className="print-section">
                         <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Legs Day Workout</h3>

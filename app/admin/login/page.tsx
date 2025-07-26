@@ -128,14 +128,8 @@ export default function AdminLogin() {
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
 
-              {/* Demo Credentials */}
-              <div className="bg-gray-700/50 border border-gray-600 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-white mb-2">Demo Credentials:</h4>
-                <div className="text-xs text-gray-300 space-y-1">
-                  <p><strong>Email:</strong> admin@serenityyoga.com</p>
-                  <p><strong>Password:</strong> admin123</p>
-                </div>
-              </div>
+           
+          
             </form>
           </CardContent>
         </Card>

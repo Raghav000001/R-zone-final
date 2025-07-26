@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FaCamera, FaUpload, FaUser, FaEnvelope, FaPhone, FaCalendarAlt, FaTimes } from "react-icons/fa";
 import { BsCurrencyRupee } from "react-icons/bs";
+import { useToast } from "@/hooks/use-toast"; // Add toast import
 
 interface Member {
   _id: string;
@@ -34,6 +35,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   member,
   onSuccess
 }) => {
+  const { toast } = useToast(); // Add toast hook
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -230,12 +232,16 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
 
       console.log('Submitting memberData:', memberData);
 
-      const url = member ? `/api/members?id=${member._id}` : '/api/members';
+      const url = member ? `/api/trainers/members?id=${member._id}` : '/api/trainers/members';
       const method = member ? 'PUT' : 'POST';
+      const trainerToken = typeof window !== 'undefined' ? localStorage.getItem('trainer-token') : null;
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(trainerToken ? { 'Authorization': `Bearer ${trainerToken}` } : {})
+        },
         body: JSON.stringify(memberData),
         credentials: 'include',
       });
@@ -250,7 +256,20 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
       }
     } catch (error) {
       console.error('Error saving member:', error);
-      alert('Failed to save member. Please try again.');
+      // User-friendly error: show toast for member limit and generic errors
+    let message = 'Failed to save member. Please try again.';
+    if (error instanceof Error && error.message.includes('Maximum member limit')) {
+      message = error.message;
+    }
+    if (typeof toast === 'function') {
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
+    } else {
+      alert(message);
+    }
     } finally {
       setIsSubmitting(false);
     }

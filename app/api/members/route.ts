@@ -17,6 +17,11 @@ export async function GET(req: NextRequest) {
 
 // POST: Create a new member (admin only)
 export async function POST(req: NextRequest) {
+  // Enforce member limit
+  const memberCount = await Member.countDocuments();
+  if (memberCount >= 450) {
+    return NextResponse.json({ error: 'Maximum member limit (450) reached.' }, { status: 400 });
+  }
   const user = await authenticateRequest(req);
   if (!user || user.role !== 'super_admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -72,16 +72,48 @@ export default function AddMemberPage() {
 
     setIsSubmitting(true)
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/trainers/members', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('trainer-token') || ''}`,
+        },
+        body: JSON.stringify(formData),
+      });
+      if (response.ok) {
+        toast({
+          title: "Member Added Successfully!",
+          description: `${formData.name} has been added to your member list.`,
+        });
+        setIsSubmitting(false);
+        window.location.href = "/trainer/members";
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        let message = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        if (message.includes('Maximum member limit')) {
+          toast({
+            title: 'Member Limit Reached',
+            description: message,
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Error',
+            description: message,
+            variant: 'destructive',
+          });
+        }
+        setIsSubmitting(false);
+      }
+    } catch (error) {
       toast({
-        title: "Member Added Successfully!",
-        description: `${formData.name} has been added to your member list.`,
-      })
-      setIsSubmitting(false)
-      // Redirect to members list
-      window.location.href = "/trainer/members"
-    }, 2000)
+        title: 'Error',
+        description: 'Failed to save member. Please try again.',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+    }
   }
 
   return (
