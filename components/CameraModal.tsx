@@ -122,19 +122,27 @@ const CameraModal: React.FC<CameraModalProps> = ({
 
   return (
     <div 
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.95)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 999999,
-      }}
-    >
+  style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999999,
+    width: '100vw',
+    height: '100vh',
+    // Responsive mobile fix
+    ...(window.innerWidth <= 600 ? {
+      alignItems: 'flex-end',
+      paddingBottom: '0',
+    } : {}),
+  }}
+>
+
       <div 
         style={{
           backgroundColor: '#1f2937',
@@ -240,9 +248,12 @@ const CameraModal: React.FC<CameraModalProps> = ({
               style={{
                 width: '100%',
                 height: '300px',
+                maxHeight: '50vh', // Responsive height for mobile
                 borderRadius: '8px',
                 border: '1px solid #4b5563',
                 backgroundColor: '#000',
+                objectFit: 'cover',
+                display: 'block',
               }}
             />
           ) : (
