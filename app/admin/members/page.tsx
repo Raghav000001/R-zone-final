@@ -101,7 +101,7 @@ export default function AdminMembersPage() {
     if (statusFilter !== "all") {
       filtered = filtered.filter(member => {
         const status = getMemberStatus(member);
-        return status.label.toLowerCase().includes(statusFilter);
+        return status.label === statusFilter;
       });
     }
 
@@ -218,9 +218,9 @@ export default function AdminMembersPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-gray-700 border-gray-600">
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="expired">Expired</SelectItem>
-                    <SelectItem value="expires-soon">Expires Soon</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="EXPIRED">Expired</SelectItem>
+                    <SelectItem value="EXPIRES SOON">Expires Soon</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -268,7 +268,7 @@ export default function AdminMembersPage() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-white text-sm sm:text-base truncate">{member.name}</h3>
+                          <h3 className="font-semibold text-white text-sm sm:text-base">{member.name}</h3>
                           <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-400">
                             <FaEnvelope className="text-xs flex-shrink-0" />
                             <span className="truncate">{member.email}</span>
