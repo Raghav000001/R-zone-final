@@ -278,6 +278,12 @@ export default function AdminMembersPage() {
                               alt={member.name}
                               className="w-full h-full object-cover"
                             />
+                          ) : member.photoBack ? (
+                            <img
+                              src={member.photoBack}
+                              alt={member.name}
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
                             <FaUser className="text-gray-400 text-lg sm:text-xl" />
                           )}
