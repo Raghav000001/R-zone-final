@@ -39,28 +39,46 @@ export default function AdminDashboard() {
     totalTrainers: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    // Don't run auth check if we're in the process of logging out
+    if (!isLoggingOut) {
+      checkAuth();
+    }
+  }, [isLoggingOut]);
 
   const checkAuth = async () => {
     try {
+      console.log('Admin dashboard - checking authentication...');
+      
       const response = await fetch('/api/auth/me', {
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store', // Prevent caching issues
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
       });
       
+      console.log('Auth response status:', response.status);
+      
       if (!response.ok) {
+        console.log('Authentication failed, redirecting to login...');
         // Not authenticated, redirect to login
-        window.location.href = '/admin/login';
+        window.location.replace('/admin/login?logout=true');
         return;
       }
+      
+      const authData = await response.json();
+      console.log('Authentication successful:', authData);
       
       // User is authenticated, fetch stats
       await fetchStats();
     } catch (error) {
       console.error('Auth check failed:', error);
-      window.location.href = '/admin/login';
+      if (!isLoggingOut) {
+        window.location.replace('/admin/login?logout=true');
+      }
     } finally {
       setLoading(false);
     }
@@ -68,15 +86,26 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
+      console.log('Fetching admin stats...');
+      
       const response = await fetch('/api/admin/stats', {
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
       });
+      
       if (response.ok) {
         const data = await response.json();
         console.log('Admin stats received:', data);
         setStats(data);
       } else {
         console.error('Failed to fetch stats:', response.status, response.statusText);
+        // If we can't fetch stats but auth passed, might be a server issue
+        if (response.status === 401 || response.status === 403) {
+          window.location.replace('/admin/login?logout=true');
+        }
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -84,25 +113,77 @@ export default function AdminDashboard() {
   };
 
   const handleLogout = async () => {
+    if (isLoggingOut) return; // Prevent multiple logout attempts
+    
     try {
+      console.log('Starting admin logout...');
+      setIsLoggingOut(true);
+      
       // Call logout API to clear server-side session
-      await fetch('/api/auth/logout', {
+      const response = await fetch('/api/auth/logout', {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
       });
+      
+      console.log('Logout API response:', response.status);
+      
+      // Always clear cookies regardless of API response
+      console.log('Clearing authentication cookies...');
+      
+      // Clear ALL authentication cookies with all possible path variations
+      const cookiesToClear = [
+        "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax",
+        "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/admin; SameSite=Lax",
+        "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api; SameSite=Lax",
+        "trainer-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax"
+      ];
+      
+      cookiesToClear.forEach(cookie => {
+        document.cookie = cookie;
+      });
+      
+      // Clear any localStorage items
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+      
+      console.log('Redirecting to login page...');
+      
+      // Use replace to prevent back button issues and add logout parameter
+      window.location.replace('/admin/login?logout=true');
+      
     } catch (error) {
       console.error('Logout error:', error);
-    } finally {
-      // Clear client-side cookies and redirect
+      // Even if logout API fails, still redirect to login
+      setIsLoggingOut(true);
+      
+      // Clear cookies anyway
       document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      window.location.href = '/admin/login';
+      document.cookie = "trainer-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+      
+      window.location.replace('/admin/login?logout=true');
     }
   };
 
-  if (loading) {
+  // Show loading state during logout
+  if (loading || isLoggingOut) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-400"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-400 mx-auto mb-4"></div>
+          <p className="text-gray-400">
+            {isLoggingOut ? 'Logging out...' : 'Loading dashboard...'}
+          </p>
+        </div>
       </div>
     );
   }
@@ -124,10 +205,11 @@ export default function AdminDashboard() {
                 variant="outline"
                 size="sm"
                 onClick={handleLogout}
-                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                disabled={isLoggingOut}
+                className="border-gray-600 text-gray-300 hover:bg-gray-700 disabled:opacity-50"
               >
                 <FaSignOutAlt className="mr-2" />
-                Logout
+                {isLoggingOut ? 'Logging out...' : 'Logout'}
               </Button>
             </div>
           </div>

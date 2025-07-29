@@ -219,6 +219,8 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
       };
 
       console.log('Submitting memberData:', memberData);
+      console.log('photoFront:', formData.photoFront ? 'exists' : 'not set');
+      console.log('photoBack:', formData.photoBack ? 'exists' : 'not set');
       console.log('amountPaid value:', formData.amountPaid, 'parsed:', parseFloat(formData.amountPaid));
       console.log('amountBalance value:', formData.amountBalance, 'parsed:', parseFloat(formData.amountBalance));
 
@@ -617,15 +619,19 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
                     <FaCamera className="mr-2" />
                     Retake Photo
                   </Button>
-                  <Button
-                    onClick={() => {
-                      if (cameraSide === 'front') {
-                        setFormData(prev => ({ ...prev, photoFront: currentPhoto }));
-                      } else {
-                        setFormData(prev => ({ ...prev, photoBack: currentPhoto }));
-                      }
-                      setIsCameraModalOpen(false);
-                    }}
+                                      <Button
+                      onClick={() => {
+                        console.log('Use Photo clicked - cameraSide:', cameraSide);
+                        console.log('Use Photo clicked - currentPhoto length:', currentPhoto.length);
+                        if (cameraSide === 'front') {
+                          console.log('Setting photoFront');
+                          setFormData(prev => ({ ...prev, photoFront: currentPhoto }));
+                        } else {
+                          console.log('Setting photoBack');
+                          setFormData(prev => ({ ...prev, photoBack: currentPhoto }));
+                        }
+                        setIsCameraModalOpen(false);
+                      }}
                     className="bg-green-600 hover:bg-green-700 text-white
                               text-base py-3 px-6 h-12 w-full"
                   >

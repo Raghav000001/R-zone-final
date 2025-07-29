@@ -85,11 +85,15 @@ export async function authenticateRequest(request: NextRequest): Promise<JWTPayl
   const token = getTokenFromRequest(request);
   console.log('authenticateRequest - token found:', !!token);
   console.log('authenticateRequest - token length:', token?.length);
+  console.log('authenticateRequest - pathname:', request.nextUrl.pathname);
+  
   if (!token) {
     console.log('authenticateRequest - no token found');
     return null;
   }
+  
   const result = await verifyToken(token);
   console.log('authenticateRequest - verification result:', result);
+  console.log('authenticateRequest - user role:', result?.role);
   return result;
 }

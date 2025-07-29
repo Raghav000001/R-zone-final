@@ -124,6 +124,18 @@ export default function TrainerDashboard() {
       if (response.ok) {
         const data = await response.json();
         console.log('Members data received:', data);
+        
+        // Debug: Check photo data for each member
+        if (Array.isArray(data)) {
+          data.forEach((member, index) => {
+            console.log(`Member ${index + 1} (${member.name}):`, {
+              photoFront: member.photoFront ? `exists (${member.photoFront.length} chars)` : 'not set',
+              photoBack: member.photoBack ? `exists (${member.photoBack.length} chars)` : 'not set',
+              hasAnyPhoto: !!(member.photoFront || member.photoBack)
+            });
+          });
+        }
+        
         setMembers(Array.isArray(data) ? data : []);
       } else {
         const errorData = await response.json();
@@ -336,31 +348,35 @@ export default function TrainerDashboard() {
               return (
                 <Card key={member._id} className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors">
                   <CardContent className="p-4 sm:p-6">
-                    {/* Member Header */}
+                    {/* Member Header - Fixed Photo Display */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {member.photo ? (
-                            <img
-                              src={member.photo}
-                              alt={member.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : member.photoFront ? (
-                            <img
-                              src={member.photoFront}
-                              alt={member.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : member.photoBack ? (
-                            <img
-                              src={member.photoBack}
-                              alt={member.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <FaUser className="text-gray-400 text-lg sm:text-xl" />
-                          )}
+                          {(() => {
+                            // Priority: photoFront > photoBack (removed photo field since it's not being saved)
+                            const photoToDisplay = member.photoFront || member.photoBack;
+                            
+                            if (photoToDisplay) {
+                              return (
+                                <img
+                                  src={photoToDisplay}
+                                  alt={member.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error(`Failed to load photo for ${member.name}:`, {
+                                      photoFront: member.photoFront ? 'exists' : 'missing',
+                                      photoBack: member.photoBack ? 'exists' : 'missing',
+                                      attemptedSrc: photoToDisplay?.substring(0, 50) + '...' // Log first 50 chars of base64
+                                    });
+                                  }}
+                                />
+                              );
+                            }
+                            
+                            return (
+                              <FaUser className="text-gray-400 text-lg sm:text-xl" />
+                            );
+                          })()}
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="font-semibold text-white text-sm sm:text-base truncate">{member.name}</h3>
@@ -474,4 +490,4 @@ export default function TrainerDashboard() {
       />
     </div>
   );
-}
+} 

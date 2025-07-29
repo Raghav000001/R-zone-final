@@ -15,26 +15,55 @@ export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
 
   // Check if user is already logged in
   useEffect(() => {
     const checkAuth = async () => {
+      if (hasCheckedAuth) return; // Prevent multiple checks
+      
+      // Check if we just logged out (URL parameter)
+      const urlParams = new URLSearchParams(window.location.search);
+      const justLoggedOut = urlParams.get('logout');
+      
+      if (justLoggedOut === 'true') {
+        console.log('Just logged out, skipping auth check');
+        setHasCheckedAuth(true);
+        // Remove the logout parameter from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
+      
       try {
+        console.log('Checking admin authentication...');
         const response = await fetch('/api/auth/me', {
-          credentials: 'include'
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
         });
+        console.log('Auth check response:', response.status);
+        
         if (response.ok) {
           // User is already logged in, redirect to dashboard
-          window.location.href = '/admin/dashboard';
+          console.log('User authenticated, redirecting to dashboard');
+          window.location.replace('/admin/dashboard');
+        } else {
+          console.log('User not authenticated, staying on login page');
+          setHasCheckedAuth(true);
         }
       } catch (error) {
         // User is not logged in, stay on login page
-        console.log('User not authenticated');
+        console.log('Auth check error:', error);
+        setHasCheckedAuth(true);
       }
     };
 
-    checkAuth();
-  }, []);
+    // Add a delay to prevent immediate re-login after logout
+    const timer = setTimeout(checkAuth, 1000);
+    return () => clearTimeout(timer);
+  }, [hasCheckedAuth]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
