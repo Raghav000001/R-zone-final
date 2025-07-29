@@ -89,8 +89,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateP
       );
     }
 
-    // Create the prompt for Together.ai API
-    const prompt = `You are a professional fitness and nutrition coach. Based on the user's profile, generate a full **Indian gym-based workout and diet plan**, personalized to the given details.
+    // Create the prompt for Together.ai API with custom system prompt
+    const systemPrompt = `You are a highly knowledgeable Indian fitness and Ayurveda expert who creates personalized fat-loss and muscle-gain diet plans based on ancient Ayurvedic practices and modern Indian vegetarian nutrition. You must:
+
+- Create dynamic and unique diet plans tailored to the user's weight, age, gender, workout routine, and goals.
+- Follow Ayurvedic principles: advise warm water after waking up, avoid food before 12 PM except fruits, recommend early dinners, and include seasonal local foods.
+- Include cheap, desi, high-protein vegetarian sources like: soya chunks, soybean chap, boiled chana, dal (especially masoor, urad, moong), peanuts, til (sesame), jaggery (gud), and daliya.
+- Use ancient Ayurvedic foods like triphala, turmeric milk, methi seeds soaked water, jeera water, etc. where helpful.
+- Clearly distinguish meals into Ayurvedic foods and regular Indian meals. Suggest options like khichdi, poha, upma, curd-rice, and millet-based dishes.
+- Avoid fancy or western ingredients. Focus only on what's locally available and affordable in India.
+- Do not repeat same meals. Make it feel well-thought and customized.
+
+Always output the plan in clean format: Morning Routine, Breakfast, Lunch, Snack, Dinner, and Bedtime Routine — with explanation why each item is included.`;
+
+    const userPrompt = `Based on the user's profile, generate a full **Indian gym-based workout and personalized Ayurvedic diet plan**.
 
 User details:
 - Name: ${formData.name}
@@ -145,32 +157,42 @@ Your response should be **structured in this exact JSON format**:
     ]
   },
   "diet_plan": {
-    "type": "Indian ${formData.dietPreference || 'flexible'}",
+    "type": "Ayurvedic Indian ${formData.dietPreference || 'flexible'}",
+    "morning_routine": [
+      "Warm water with lemon and honey (detoxifies and boosts metabolism)",
+      "Triphala water or jeera water (improves digestion)"
+    ],
     "breakfast": [
-      "Oats with almond milk, banana, and chia seeds",
-      "Tofu or Paneer bhurji (Veg) / 3 boiled eggs + toast (Non-Veg)"
+      "Sprouts salad with lime & chaat masala (high protein, low calorie)",
+      "Vegetable upma with peanuts (sustained energy release)"
     ],
     "lunch": [
-      "Brown rice, dal, sabzi, cucumber salad",
-      "Grilled paneer or chicken breast"
+      "Roti (whole wheat) + palak paneer (iron and protein rich)",
+      "Dal (lentil soup) with brown rice (complete protein)"
     ],
     "snacks": [
-      "Peanuts or sprouts chaat",
-      "Black coffee or green tea"
+      "Roasted makhana or boiled chana (high protein, low fat)",
+      "Masala chai with jaggery (natural sweetener, energy boost)"
     ],
     "dinner": [
-      "Roti + sabzi + dal + salad",
-      "Optional: Quinoa or daliya + curd"
+      "Khichdi with vegetables (light, easily digestible)",
+      "Curd rice with cucumber (probiotic, cooling effect)"
+    ],
+    "bedtime_routine": [
+      "Turmeric milk with honey (anti-inflammatory, sleep aid)",
+      "Methi seeds soaked water (blood sugar control)"
     ]
   },
   "supplements": [
     "Creatine Monohydrate (5g post workout)",
-    "Plant-based protein or Whey (depending on preference)"
+    "Plant-based protein powder (soya or pea protein)"
   ],
   "additional_recommendations": [
     "Hydration: At least 3L of water daily",
     "Sleep: 7-8 hours minimum",
-    "Track progress weekly"
+    "Track progress weekly",
+    "Morning walks or yoga for relaxation and digestion",
+    "Avoid eating after 8 PM for better digestion"
   ]
 }
 
@@ -196,8 +218,12 @@ Please respond with only the JSON structure, no additional text.`;
       model: process.env.TOGETHERAI_MODEL || "mistralai/Mixtral-8x7B-Instruct-v0.1",
       messages: [
         {
+          role: "system",
+          content: systemPrompt
+        },
+        {
           role: "user",
-          content: prompt
+          content: userPrompt
         }
       ],
       max_tokens: 3000,
@@ -261,6 +287,38 @@ Please respond with only the JSON structure, no additional text.`;
         throw new Error('Invalid plan structure');
       }
 
+      // Ensure all required sections exist with fallbacks
+      if (!parsedPlan.cardio_HIIT) {
+        parsedPlan.cardio_HIIT = {
+          routine: ["Walking - 20 minutes", "Light jogging - 10 minutes"],
+          weekly_frequency: "3x/week"
+        };
+      }
+
+      if (!parsedPlan.fst7_day) {
+        parsedPlan.fst7_day = {
+          target_muscle: "Chest or Biceps (depending on goal)",
+          routine: ["Cable Fly (FST7) - 7 sets x 12 reps, 30 sec rest"]
+        };
+      }
+
+      if (!parsedPlan.supplements) {
+        parsedPlan.supplements = ["Creatine Monohydrate (5g post workout)", "Plant-based protein powder"];
+      }
+
+      if (!parsedPlan.additional_recommendations) {
+        parsedPlan.additional_recommendations = [
+          "Hydration: At least 3L of water daily",
+          "Sleep: 7-8 hours minimum",
+          "Track progress weekly"
+        ];
+      }
+
+      // Validate diet plan has the new Ayurvedic structure
+      if (!parsedPlan.diet_plan.morning_routine || !parsedPlan.diet_plan.bedtime_routine) {
+        console.log('Diet plan missing Ayurvedic structure, but continuing...');
+      }
+
       console.log('Indian fitness plan generated successfully');
       return NextResponse.json({ plan: parsedPlan });
     } catch (parseError) {
@@ -301,19 +359,21 @@ Please respond with only the JSON structure, no additional text.`;
             ]
           },
           cardio_HIIT: {
-            routine: ["AI response could not be parsed. Please try again."],
-            weekly_frequency: "N/A"
+            routine: ["Walking - 20 minutes", "Light jogging - 10 minutes"],
+            weekly_frequency: "3x/week"
           },
           fst7_day: {
-            target_muscle: "N/A",
-            routine: ["AI response could not be parsed. Please try again."]
+            target_muscle: "Chest or Biceps (depending on goal)",
+            routine: ["Cable Fly (FST7) - 7 sets x 12 reps, 30 sec rest"]
           },
           diet_plan: {
-            type: "N/A",
+            type: "Ayurvedic Indian N/A",
+            morning_routine: ["AI response could not be parsed. Please try again."],
             breakfast: ["AI response could not be parsed. Please try again."],
             lunch: ["AI response could not be parsed. Please try again."],
             snacks: ["AI response could not be parsed. Please try again."],
-            dinner: ["AI response could not be parsed. Please try again."]
+            dinner: ["AI response could not be parsed. Please try again."],
+            bedtime_routine: ["AI response could not be parsed. Please try again."]
           },
           supplements: ["AI response could not be parsed. Please try again."],
           additional_recommendations: ["AI response could not be parsed. Please try again."]

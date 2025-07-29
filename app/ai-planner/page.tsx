@@ -538,37 +538,52 @@ export default function AIPlanner() {
                       </div>
 
                       {/* Cardio & HIIT */}
-                      <div className="print-section">
-                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Cardio & HIIT Training</h3>
-                        <div className="bg-gray-800/50 p-3 sm:p-4 rounded-lg border border-gray-700">
-                          <p className="mb-2 text-white text-sm sm:text-base">Weekly Frequency: {wellnessPlan.cardio_HIIT.weekly_frequency}</p>
-                          <div className="space-y-1">
-                            {wellnessPlan.cardio_HIIT.routine.map((exercise, index) => (
-                              <p key={index} className="text-gray-300 text-xs sm:text-sm">• {exercise}</p>
-                            ))}
+                      {wellnessPlan.cardio_HIIT && (
+                        <div className="print-section">
+                          <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Cardio & HIIT Training</h3>
+                          <div className="bg-gray-800/50 p-3 sm:p-4 rounded-lg border border-gray-700">
+                            <p className="mb-2 text-white text-sm sm:text-base">Weekly Frequency: {wellnessPlan.cardio_HIIT.weekly_frequency || "3x/week"}</p>
+                            <div className="space-y-1">
+                              {wellnessPlan.cardio_HIIT.routine && wellnessPlan.cardio_HIIT.routine.map((exercise, index) => (
+                                <p key={index} className="text-gray-300 text-xs sm:text-sm">• {exercise}</p>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* FST-7 Training */}
-                      <div className="print-section">
-                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">FST-7 Training</h3>
-                        <div className="bg-gray-800/50 p-3 sm:p-4 rounded-lg border border-gray-700">
-                          <p className="mb-2 text-white text-sm sm:text-base">Target Muscle: {wellnessPlan.fst7_day.target_muscle}</p>
-                          <div className="space-y-1">
-                            {wellnessPlan.fst7_day.routine.map((exercise, index) => (
-                              <p key={index} className="text-gray-300 text-xs sm:text-sm">• {exercise}</p>
-                            ))}
+                      {wellnessPlan.fst7_day && (
+                        <div className="print-section">
+                          <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">FST-7 Training</h3>
+                          <div className="bg-gray-800/50 p-3 sm:p-4 rounded-lg border border-gray-700">
+                            <p className="mb-2 text-white text-sm sm:text-base">Target Muscle: {wellnessPlan.fst7_day.target_muscle || "Chest or Biceps"}</p>
+                            <div className="space-y-1">
+                              {wellnessPlan.fst7_day.routine && wellnessPlan.fst7_day.routine.map((exercise, index) => (
+                                <p key={index} className="text-gray-300 text-xs sm:text-sm">• {exercise}</p>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Diet Plan */}
                       <div className="print-section">
-                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Indian Diet Plan ({wellnessPlan.diet_plan.type})</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 print-diet-grid">
+                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Ayurvedic Indian Diet Plan ({wellnessPlan.diet_plan.type})</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 print-diet-grid">
+                          {/* Morning Routine */}
+                          {wellnessPlan.diet_plan.morning_routine && (
+                            <div>
+                              <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🌅 Morning Routine</h4>
+                              <ul className="space-y-1 print-yoga-list">
+                                {wellnessPlan.diet_plan.morning_routine.map((item, index) => (
+                                  <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                           <div>
-                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">Breakfast</h4>
+                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🍳 Breakfast</h4>
                             <ul className="space-y-1 print-yoga-list">
                               {wellnessPlan.diet_plan.breakfast.map((item, index) => (
                                 <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
@@ -576,7 +591,7 @@ export default function AIPlanner() {
                             </ul>
                           </div>
                           <div>
-                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">Lunch</h4>
+                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🍽️ Lunch</h4>
                             <ul className="space-y-1 print-yoga-list">
                               {wellnessPlan.diet_plan.lunch.map((item, index) => (
                                 <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
@@ -584,7 +599,7 @@ export default function AIPlanner() {
                             </ul>
                           </div>
                           <div>
-                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">Snacks</h4>
+                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🥜 Snacks</h4>
                             <ul className="space-y-1 print-yoga-list">
                               {wellnessPlan.diet_plan.snacks.map((item, index) => (
                                 <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
@@ -592,35 +607,50 @@ export default function AIPlanner() {
                             </ul>
                           </div>
                           <div>
-                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">Dinner</h4>
+                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🌙 Dinner</h4>
                             <ul className="space-y-1 print-yoga-list">
                               {wellnessPlan.diet_plan.dinner.map((item, index) => (
                                 <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
                               ))}
                             </ul>
                           </div>
+                          {/* Bedtime Routine */}
+                          {wellnessPlan.diet_plan.bedtime_routine && (
+                            <div>
+                              <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🌙 Bedtime Routine</h4>
+                              <ul className="space-y-1 print-yoga-list">
+                                {wellnessPlan.diet_plan.bedtime_routine.map((item, index) => (
+                                  <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Supplements */}
-                      <div className="print-section">
-                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Recommended Supplements</h3>
-                        <ul className="space-y-1 print-recommendations">
-                          {wellnessPlan.supplements.map((supplement, index) => (
-                            <li key={index} className="text-gray-300 text-xs sm:text-sm">• {supplement}</li>
-                          ))}
-                        </ul>
-                      </div>
+                      {wellnessPlan.supplements && wellnessPlan.supplements.length > 0 && (
+                        <div className="print-section">
+                          <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Recommended Supplements</h3>
+                          <ul className="space-y-1 print-recommendations">
+                            {wellnessPlan.supplements.map((supplement, index) => (
+                              <li key={index} className="text-gray-300 text-xs sm:text-sm">• {supplement}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
                       {/* Additional Recommendations */}
-                      <div className="print-section">
-                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Additional Recommendations</h3>
-                        <ul className="space-y-1 print-recommendations">
-                          {wellnessPlan.additional_recommendations.map((recommendation, index) => (
-                            <li key={index} className="text-gray-300 text-xs sm:text-sm">• {recommendation}</li>
-                          ))}
-                        </ul>
-                      </div>
+                      {wellnessPlan.additional_recommendations && wellnessPlan.additional_recommendations.length > 0 && (
+                        <div className="print-section">
+                          <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Additional Recommendations</h3>
+                          <ul className="space-y-1 print-recommendations">
+                            {wellnessPlan.additional_recommendations.map((recommendation, index) => (
+                              <li key={index} className="text-gray-300 text-xs sm:text-sm">• {recommendation}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
 

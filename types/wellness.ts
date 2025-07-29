@@ -32,10 +32,12 @@ export interface FST7Day {
 
 export interface DietPlan {
   type: string;
+  morning_routine?: string[];
   breakfast: string[];
   lunch: string[];
   snacks: string[];
   dinner: string[];
+  bedtime_routine?: string[];
 }
 
 export interface WellnessPlan {
