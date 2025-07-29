@@ -8,11 +8,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, Download, Printer, AlertCircle } from "lucide-react"
+import { Loader2, Download, Printer, AlertCircle, Clock } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { WellnessPlan, WellnessFormData } from "@/types/wellness"
 import { motion } from "framer-motion"
 import { FaDumbbell, FaCrosshairs, FaBolt } from "react-icons/fa"
+
+interface DailyUsage {
+  date: string
+  count: number
+}
 
 export default function AIPlanner() {
   const [formData, setFormData] = useState({
@@ -31,6 +36,7 @@ export default function AIPlanner() {
   const [error, setError] = useState<string | null>(null)
   const [rawResponse, setRawResponse] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [dailyUsage, setDailyUsage] = useState<DailyUsage>({ date: '', count: 0 })
   const { toast } = useToast()
   const planRef = useRef<HTMLDivElement>(null)
 
@@ -57,6 +63,7 @@ export default function AIPlanner() {
         
         // User is authenticated and is super admin
         setLoading(false);
+        checkDailyUsage();
       } catch (error) {
         console.error('Auth check failed:', error);
         window.location.href = '/admin/login';
@@ -64,7 +71,43 @@ export default function AIPlanner() {
     };
 
     checkAuth();
-  }, []);
+  }, [])
+
+  const checkDailyUsage = () => {
+    const today = new Date().toDateString()
+    const stored = localStorage.getItem('ai_planner_usage')
+    
+    if (stored) {
+      try {
+        const usage: DailyUsage = JSON.parse(stored)
+        if (usage.date === today) {
+          setDailyUsage(usage)
+        } else {
+          // New day, reset count
+          const newUsage = { date: today, count: 0 }
+          setDailyUsage(newUsage)
+          localStorage.setItem('ai_planner_usage', JSON.stringify(newUsage))
+        }
+      } catch (error) {
+        // Invalid storage data, reset
+        const newUsage = { date: today, count: 0 }
+        setDailyUsage(newUsage)
+        localStorage.setItem('ai_planner_usage', JSON.stringify(newUsage))
+      }
+    } else {
+      // First time usage
+      const newUsage = { date: today, count: 0 }
+      setDailyUsage(newUsage)
+      localStorage.setItem('ai_planner_usage', JSON.stringify(newUsage))
+    }
+  }
+
+  const updateDailyUsage = () => {
+    const today = new Date().toDateString()
+    const newUsage = { date: today, count: dailyUsage.count + 1 }
+    setDailyUsage(newUsage)
+    localStorage.setItem('ai_planner_usage', JSON.stringify(newUsage))
+  }
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -80,6 +123,16 @@ export default function AIPlanner() {
   }
 
   const generateWellnessPlan = async () => {
+    // Check daily limit
+    if (dailyUsage.count >= 10) {
+      toast({
+        title: "Daily Limit Reached",
+        description: "You have reached your daily limit of 10 fitness plan generations. Please try again tomorrow.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (!formData.name || !formData.age || !formData.fitnessGoal) {
       toast({
         title: "Missing Information",
@@ -116,6 +169,9 @@ export default function AIPlanner() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate Indian fitness plan')
       }
+
+      // Update daily usage count
+      updateDailyUsage()
 
       // Check if we have a valid plan or if parsing failed
       if (data.plan && data.rawContent) {
@@ -187,6 +243,8 @@ export default function AIPlanner() {
     window.print()
   }
 
+  const remainingRequests = Math.max(0, 10 - dailyUsage.count)
+
   return (
     <div className="min-h-screen relative overflow-x-hidden">
       {/* Background Image */}
@@ -223,8 +281,16 @@ export default function AIPlanner() {
                  Fitness Plan Generator
               </h1>
               <p className="text-base sm:text-lg md:text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed px-4">
-                Get a customized Indian gym routine with Push-Pull-Leg splits, FST-7 training, and traditional Indian nutrition plan tailored specifically to your goals, lifestyle, and dietary preferences using advanced AI technology.
+                Get a customized Indian gym routine with Push-Pull-Leg splits, FST-7 training, and traditional Indian nutrition plan tailored specifically to your goals, lifestyle, and dietary preferences using DeepSeek AI.
               </p>
+              
+              {/* Daily Usage Counter */}
+              <div className="inline-flex items-center space-x-2 bg-blue-500/20 backdrop-blur-sm border border-blue-500/30 px-4 py-2 rounded-full mt-4">
+                <Clock className="h-4 w-4 text-blue-400" />
+                <span className="text-blue-300 font-medium text-sm">
+                  Daily Requests: {dailyUsage.count}/10 remaining
+                </span>
+              </div>
             </motion.div>
           </motion.div>
 
@@ -243,6 +309,16 @@ export default function AIPlanner() {
                     <FaCrosshairs className="h-5 w-5 sm:h-7 sm:w-7 text-orange-400" />
                     <span className="text-white">Tell Us About Yourself</span>
                   </CardTitle>
+                  {remainingRequests <= 3 && (
+                    <div className="flex items-center space-x-2 p-2 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                      <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                      <span className="text-yellow-300 text-sm">
+                        {remainingRequests === 0 
+                          ? "Daily limit reached. Try again tomorrow." 
+                          : `Only ${remainingRequests} requests remaining today.`}
+                      </span>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4 sm:space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -368,18 +444,23 @@ export default function AIPlanner() {
 
                   <Button
                     onClick={generateWellnessPlan}
-                    disabled={isGenerating}
-                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-base sm:text-lg py-4 sm:py-6 font-semibold shadow-lg"
+                    disabled={isGenerating || remainingRequests === 0}
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-base sm:text-lg py-4 sm:py-6 font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isGenerating ? (
                       <>
                         <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
                         Generating Your Plan...
                       </>
+                    ) : remainingRequests === 0 ? (
+                      <>
+                        <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                        Daily Limit Reached
+                      </>
                     ) : (
                       <>
                         <FaBolt className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                        Generate My  Fitness Plan
+                        Generate My Fitness Plan ({remainingRequests} left)
                       </>
                     )}
                   </Button>

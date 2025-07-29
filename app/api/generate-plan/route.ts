@@ -81,15 +81,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateP
     }
 
     // Check if API key is configured
-    if (!process.env.GROQ_API_KEY) {
-      console.error('GROQ_API_KEY is not configured');
+    if (!process.env.TOGETHERAI_API_KEY) {
+      console.error('TOGETHERAI_API_KEY is not configured');
       return NextResponse.json(
-        { error: 'AI service is not configured. Please add GROQ_API_KEY to your environment variables.' },
+        { error: 'AI service is not configured. Please add TOGETHERAI_API_KEY to your environment variables.' },
         { status: 500 }
       );
     }
 
-    // Create the prompt for Groq API
+    // Create the prompt for Together.ai API
     const prompt = `You are a professional fitness and nutrition coach. Based on the user's profile, generate a full **Indian gym-based workout and diet plan**, personalized to the given details.
 
 User details:
@@ -187,33 +187,40 @@ Guidelines for Indian fitness context:
 
 Please respond with only the JSON structure, no additional text.`;
 
-    console.log('Sending request to Groq API...');
+    console.log('Sending request to Together.ai API...');
+    console.log('API Key length:', process.env.TOGETHERAI_API_KEY?.length || 0);
+    console.log('API Key preview:', process.env.TOGETHERAI_API_KEY?.substring(0, 10) + '...');
 
-    // Call Groq API
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // Call Together.ai API
+    const requestBody = {
+      model: process.env.TOGETHERAI_MODEL || "mistralai/Mixtral-8x7B-Instruct-v0.1",
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      max_tokens: 3000,
+      temperature: 0.7
+    };
+
+    console.log('Request body structure:', JSON.stringify(requestBody, null, 2));
+
+    const response = await fetch('https://api.together.xyz/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Authorization': `Bearer ${process.env.TOGETHERAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: 3000,
-        temperature: 0.7
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('Groq API error:', response.status, errorData);
+      console.error('Together.ai API error:', response.status, errorData);
+      console.error('Response headers:', Object.fromEntries(response.headers.entries()));
       return NextResponse.json(
-        { error: `Failed to generate Indian fitness plan: ${response.status} ${response.statusText}` },
+        { error: `Failed to generate Indian fitness plan: ${response.status} ${response.statusText}. Details: ${errorData}` },
         { status: 500 }
       );
     }
