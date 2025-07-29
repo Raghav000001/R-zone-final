@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, Camera, Upload, User, Save, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import CameraModal from "@/components/CameraModal";
 
 export default function AddMemberPage() {
   const [formData, setFormData] = useState({
@@ -33,8 +34,9 @@ export default function AddMemberPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+  // CameraModal state
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -56,7 +58,6 @@ export default function AddMemberPage() {
     setFormData((prev) => ({ ...prev, photo: null }))
     setPhotoPreview(null)
     if (fileInputRef.current) fileInputRef.current.value = ""
-    if (cameraInputRef.current) cameraInputRef.current.value = ""
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,8 +119,18 @@ export default function AddMemberPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
+    <>
+      <CameraModal
+        isOpen={isCameraModalOpen}
+        onClose={() => setIsCameraModalOpen(false)}
+        onCapture={(imageSrc) => {
+          setPhotoPreview(imageSrc);
+          setFormData((prev) => ({ ...prev, photo: imageSrc }));
+          setIsCameraModalOpen(false);
+        }}
+      />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center space-x-4">
@@ -176,7 +187,7 @@ export default function AddMemberPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => cameraInputRef.current?.click()}
+                      onClick={() => setIsCameraModalOpen(true)}
                       className="w-full bg-transparent"
                     >
                       <Camera className="h-4 w-4 mr-2" />
@@ -193,14 +204,6 @@ export default function AddMemberPage() {
                     </Button>
                   </div>
 
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="user"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                  />
                   <input
                     ref={fileInputRef}
                     type="file"

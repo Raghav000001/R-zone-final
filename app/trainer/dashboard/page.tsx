@@ -159,7 +159,7 @@ export default function TrainerDashboard() {
     if (statusFilter !== "all") {
       filtered = filtered.filter(member => {
         const status = getMemberStatus(member);
-        return status.label.toLowerCase().includes(statusFilter);
+        return status.label === statusFilter;
       });
     }
 
@@ -298,9 +298,9 @@ export default function TrainerDashboard() {
                   </SelectTrigger>
                   <SelectContent className="bg-gray-700 border-gray-600">
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="expired">Expired</SelectItem>
-                    <SelectItem value="expires-soon">Expires Soon</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="EXPIRED">Expired</SelectItem>
+                    <SelectItem value="EXPIRES SOON">Expires Soon</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

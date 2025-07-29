@@ -93,15 +93,19 @@ export async function POST(req: NextRequest) {
   }
   await dbConnect();
   const data = await req.json();
+<<<<<<< HEAD
   console.log('[POST] /api/trainers/members - Received data:', data);
       console.log('[POST] /api/trainers/members - amountBalance:', data.amountBalance);
     console.log('[POST] /api/trainers/members - amountBalance type:', typeof data.amountBalance);
     console.log('[POST] /api/trainers/members - amountBalance === undefined:', data.amountBalance === undefined);
     console.log('[POST] /api/trainers/members - amountBalance === null:', data.amountBalance === null);
+=======
+>>>>>>> a08bd5871683bfffdcd445861628a50582627db2
   try {
     // Coerce dates if present
     if (data.startDate) data.startDate = new Date(data.startDate);
     if (data.endDate) data.endDate = new Date(data.endDate);
+<<<<<<< HEAD
     
     // Ensure amountBalance is always set
     if (data.amountBalance === undefined || data.amountBalance === null) {
@@ -116,6 +120,10 @@ export async function POST(req: NextRequest) {
     await member.save();
     console.log('[POST] /api/trainers/members - Member after save:', member);
     console.log('[POST] /api/trainers/members - Member amountBalance after save:', member.amountBalance);
+=======
+    const member = new Member(data);
+    await member.save();
+>>>>>>> a08bd5871683bfffdcd445861628a50582627db2
     // Create notification for admin
     await createNotification(
       'member_added',
@@ -151,11 +159,15 @@ export async function PUT(req: NextRequest) {
   console.log('Member ID retrieved:', id); // Debug log
   const data = await req.json();
   console.log('Received data for update:', data); // Debug log
+<<<<<<< HEAD
   console.log('[PUT] /api/trainers/members - amountBalance:', data.amountBalance);
+=======
+>>>>>>> a08bd5871683bfffdcd445861628a50582627db2
   try {
     // Coerce dates if present
     if (data.startDate) data.startDate = new Date(data.startDate);
     if (data.endDate) data.endDate = new Date(data.endDate);
+<<<<<<< HEAD
     
     // Ensure amountBalance is always set
     if (data.amountBalance === undefined || data.amountBalance === null) {
@@ -164,6 +176,8 @@ export async function PUT(req: NextRequest) {
     
     console.log('[PUT] /api/trainers/members - Final data before update:', data);
     
+=======
+>>>>>>> a08bd5871683bfffdcd445861628a50582627db2
     const member = await Member.findByIdAndUpdate(id, data, { new: true });
     console.log('[PUT] /api/trainers/members - Updated member:', member);
     if (!member) {
