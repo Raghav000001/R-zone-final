@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,28 @@ export default function TrainerLogin() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Check if trainer is already logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/trainers/me', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          // Trainer is already logged in, redirect to dashboard
+          window.location.href = '/trainer/dashboard';
+        }
+      } catch (error) {
+        // Trainer is not logged in, stay on login page
+        console.log('Trainer not authenticated');
+      }
+    };
+
+    // Add a small delay to ensure cookies are set
+    const timer = setTimeout(checkAuth, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,17 +52,12 @@ export default function TrainerLogin() {
       const data = await response.json();
 
       if (response.ok) {
-        // Store trainer data in localStorage
-        localStorage.setItem('trainer-token', data.token);
-        localStorage.setItem('trainer-data', JSON.stringify(data.trainer));
-        
-        // Set cookie for server-side auth
-        document.cookie = `trainer-token=${data.token}; path=/; max-age=86400`;
-        
         toast.success('Login successful!');
         
-        // Redirect to trainer dashboard
-        window.location.href = '/trainer/dashboard';
+        // Add a small delay to ensure cookie is set before redirect
+        setTimeout(() => {
+          window.location.href = '/trainer/dashboard';
+        }, 500);
       } else {
         toast.error(data.error || 'Login failed');
       }

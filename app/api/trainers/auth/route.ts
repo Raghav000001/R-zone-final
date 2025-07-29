@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import Trainer from '../../../../models/Trainer';
-import jwt from 'jsonwebtoken';
+import { generateToken } from '@/lib/auth';
 
 async function dbConnect() {
   if (mongoose.connection.readyState >= 1) return;
@@ -28,25 +28,44 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Create JWT token
-    const token = jwt.sign(
-      { 
-        id: trainer._id, 
-        email: trainer.email, 
-        name: trainer.name,
-        role: 'trainer' 
-      },
-      process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: '7d' }
-    );
+    // Generate JWT token using the auth library
+    const token = await generateToken({
+      userId: trainer._id.toString(),
+      email: trainer.email,
+      role: 'trainer',
+      name: trainer.name,
+    });
+
+    console.log('Trainer auth - generated token:', token.substring(0, 20) + '...');
+    console.log('Trainer auth - trainer data:', {
+      userId: trainer._id.toString(),
+      email: trainer.email,
+      role: 'trainer',
+      name: trainer.name,
+    });
 
     const trainerResponse = trainer.toObject();
     delete trainerResponse.password;
 
-    return NextResponse.json({
+    // Create response
+    const response = NextResponse.json({
+      success: true,
+      message: "Login successful",
       trainer: trainerResponse,
-      token
     });
+
+    // Set HTTP-only cookie
+    response.cookies.set("trainer-token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      path: "/",
+    });
+
+    console.log('Trainer auth - cookie set successfully');
+
+    return response;
   } catch (error) {
     console.error('Trainer login error:', error);
     return NextResponse.json({ error: 'Login failed' }, { status: 500 });

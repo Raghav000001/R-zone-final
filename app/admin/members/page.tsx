@@ -36,6 +36,7 @@ interface Member {
   photoBack?: string;
   galleryPhotos?: string[];
   amountPaid?: number;
+  amountBalance?: number;
   photo?: string;
 }
 
@@ -49,6 +50,7 @@ export default function AdminMembersPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
+
 
   const membershipTypes = ["Monthly", "Quarterly", "Half Yearly", "Yearly"];
 
@@ -68,6 +70,12 @@ export default function AdminMembersPage() {
       if (response.ok) {
         const data = await response.json();
         setMembers(data);
+        console.log('Fetched members:', data);
+        
+        // Debug: Check amountBalance for each member
+        data.forEach((member: Member, index: number) => {
+          console.log(`Member ${index + 1} (${member.name}): amountBalance = ${member.amountBalance}`);
+        });
       } else {
         console.error('Failed to fetch members');
         toast.error('Failed to fetch members');
@@ -152,6 +160,8 @@ export default function AdminMembersPage() {
     }
   };
 
+
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Header */}
@@ -164,13 +174,16 @@ export default function AdminMembersPage() {
                 {filteredMembers.length} Members
               </Badge>
             </div>
-            <Button
-              onClick={() => setShowAddDialog(true)}
-              className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto text-sm sm:text-base"
-            >
-              <FaPlus className="mr-2 text-xs sm:text-sm" />
-              Add Member
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+
+              <Button
+                onClick={() => setShowAddDialog(true)}
+                className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto text-sm sm:text-base"
+              >
+                <FaPlus className="mr-2 text-xs sm:text-sm" />
+                Add Member
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -243,6 +256,8 @@ export default function AdminMembersPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
             {filteredMembers.map((member) => {
+              console.log('Member card data:', member);
+              console.log('amountPaid:', member.amountPaid, 'amountBalance:', member.amountBalance);
               const status = getMemberStatus(member);
               return (
                 <Card key={member._id} className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors">
@@ -316,13 +331,16 @@ export default function AdminMembersPage() {
                         <MdOutlineCardMembership className="text-green-400 text-sm sm:text-base flex-shrink-0" />
                         <span className="text-xs sm:text-sm text-gray-300 truncate">{member.membershipType}</span>
                       </div>
-                      {member.amountPaid && (
-                        <div className="flex items-center gap-1 sm:gap-2">
-                          <BsCurrencyRupee className="text-green-400 text-sm sm:text-base flex-shrink-0" />
-                          <span className="text-xs sm:text-sm text-gray-300">₹{member.amountPaid}</span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1 sm:gap-2">
+                        <BsCurrencyRupee className="text-green-400 text-sm sm:text-base flex-shrink-0" />
+                        <span className="text-xs sm:text-sm text-gray-300">Paid: ₹{member.amountPaid || 0}</span>
+                      </div>
+                      <div className="flex items-center gap-1 sm:gap-2">
+                        <BsCurrencyRupee className="text-blue-400 text-sm sm:text-base flex-shrink-0" />
+                        <span className="text-xs sm:text-sm text-gray-300">Balance: ₹{member.amountBalance || 0}</span>
+                      </div>
                     </div>
+
 
                     {/* Dates */}
                     <div className="space-y-1 mb-3 sm:mb-4 text-xs sm:text-sm">

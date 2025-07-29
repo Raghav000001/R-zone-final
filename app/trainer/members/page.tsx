@@ -22,6 +22,7 @@ interface Member {
   photoBack?: string;
   photo?: string;
   amountPaid?: number;
+  amountBalance?: number;
 }
 
 export default function TrainerMembersPage() {
@@ -171,10 +172,11 @@ export default function TrainerMembersPage() {
                 filteredMembers.map((member) => (
                   <div
                     key={member._id}
-                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:shadow-md transition-shadow"
+                    className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:shadow-md transition-shadow space-y-3 lg:space-y-0"
                   >
+                    {/* Left Section - User Info */}
                     <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
+                      <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                         {(member.photoFront || member.photo) ? (
                           <img
                             src={member.photoFront || member.photo}
@@ -191,40 +193,76 @@ export default function TrainerMembersPage() {
                         ) : null}
                         <FaUser className={`text-gray-400 text-xl ${(member.photoFront || member.photo) ? 'hidden' : ''}`} />
                       </div>
-                      <div>
+                      <div className="flex-1">
                         <p className="font-medium text-lg">{member.name}</p>
                         <p className="text-sm text-gray-600 dark:text-gray-300">{member.email}</p>
-                        <p className="text-sm text-gray-500">{member.phone}</p>
+                        {member.phone && <p className="text-sm text-gray-500">{member.phone}</p>}
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <Badge variant="secondary">{member.membershipType}</Badge>
+                    {/* Right Section - Details and Actions */}
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-6 space-y-3 lg:space-y-0">
+                      {/* Member Details */}
+                      <div className="flex flex-col space-y-2 lg:text-right">
+                        {/* Status and Membership Type */}
+                        <div className="flex flex-wrap items-center lg:justify-end gap-2">
+                          <Badge variant="secondary" className="text-xs">
+                            {member.membershipType}
+                          </Badge>
                           <Badge 
                             variant={getMemberStatus(member).color === "green" ? "default" : 
                                    getMemberStatus(member).color === "red" ? "destructive" : "secondary"}
-                            className={getMemberStatus(member).color === "green" ? "bg-green-600" :
-                                     getMemberStatus(member).color === "red" ? "bg-red-600" : "bg-yellow-600"}
+                            className={`text-xs ${
+                              getMemberStatus(member).color === "green" ? "bg-green-600" :
+                              getMemberStatus(member).color === "red" ? "bg-red-600" : "bg-yellow-600"
+                            }`}
                           >
                             {getMemberStatus(member).label}
                           </Badge>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline">Start: {new Date(member.startDate).toLocaleDateString()}</Badge>
-                          {member.endDate && <Badge variant="outline">End: {new Date(member.endDate).toLocaleDateString()}</Badge>}
+                        
+                        {/* Dates */}
+                        <div className="flex flex-wrap items-center lg:justify-end gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            Start: {new Date(member.startDate).toLocaleDateString()}
+                          </Badge>
+                          {member.endDate && (
+                            <Badge variant="outline" className="text-xs">
+                              End: {new Date(member.endDate).toLocaleDateString()}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        {/* Payment Information - Always visible */}
+                        <div className="flex flex-wrap items-center lg:justify-end gap-2">
+                          <Badge 
+                            variant="outline" 
+                            className="bg-green-100 text-green-800 border-green-300 text-xs font-semibold px-2 py-1"
+                          >
+                            💰 Paid: ₹{member.amountPaid || 0}
+                          </Badge>
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs font-semibold px-2 py-1 ${
+                              (member.amountBalance || 0) > 0 
+                                ? 'bg-red-100 text-red-800 border-red-300' 
+                                : 'bg-blue-100 text-blue-800 border-blue-300'
+                            }`}
+                          >
+                            {(member.amountBalance || 0) > 0 ? '⚠️' : '✅'} Balance: ₹{member.amountBalance !== undefined ? member.amountBalance : 0}
+                          </Badge>
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-2">
+                      {/* Action Buttons */}
+                      <div className="flex items-center space-x-2 flex-shrink-0 lg:ml-4">
                         <Link href={`/trainer/members/${member._id}`}>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" className="h-9 w-9">
                             <FaEye className="h-4 w-4" />
                           </Button>
                         </Link>
                         <Link href={`/trainer/members/${member._id}/edit`}>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" className="h-9 w-9">
                             <FaEdit className="h-4 w-4" />
                           </Button>
                         </Link>
@@ -236,6 +274,20 @@ export default function TrainerMembersPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Debug Information - Remove this in production */}
+        {process.env.NODE_ENV === 'development' && members.length > 0 && (
+          <Card className="mt-4 border-yellow-200 bg-yellow-50">
+            <CardHeader>
+              <CardTitle className="text-yellow-800">Debug Info (Remove in Production)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-yellow-700">
+                Sample member data: {JSON.stringify(members[0], null, 2)}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Note about permissions */}
         <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">

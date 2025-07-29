@@ -19,6 +19,7 @@ interface Member {
   photoBack?: string;
   galleryPhotos?: string[];
   amountPaid?: number;
+  amountBalance?: number;
 }
 
 interface AddMemberDialogProps {
@@ -42,6 +43,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
     startDate: "",
     endDate: "",
     amountPaid: "",
+    amountBalance: "0",
     photoFront: "",
     photoBack: "",
     galleryPhotos: [] as string[],
@@ -58,6 +60,8 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   useEffect(() => {
     if (open) {
       if (member) {
+        console.log('Loading member data:', member);
+        console.log('amountPaid:', member.amountPaid, 'amountBalance:', member.amountBalance);
         setFormData({
           name: member.name || "",
           email: member.email || "",
@@ -65,12 +69,14 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
           membershipType: member.membershipType || "",
           startDate: member.startDate ? new Date(member.startDate).toISOString().split('T')[0] : "",
           endDate: member.endDate ? new Date(member.endDate).toISOString().split('T')[0] : "",
-          amountPaid: member.amountPaid?.toString() || "",
+          amountPaid: member.amountPaid?.toString() || "0",
+          amountBalance: (member.amountBalance !== undefined && member.amountBalance !== null) ? member.amountBalance.toString() : "0",
           photoFront: member.photoFront || "",
           photoBack: member.photoBack || "",
           galleryPhotos: member.galleryPhotos || [],
         });
       } else {
+        console.log('Setting default form data with amountBalance: "0"');
         setFormData({
           name: "",
           email: "",
@@ -79,6 +85,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
           startDate: "",
           endDate: "",
           amountPaid: "",
+          amountBalance: "0",
           photoFront: "",
           photoBack: "",
           galleryPhotos: [],
@@ -126,6 +133,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   }, [isCameraModalOpen, isPhotoTaken, cameraSide]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('Input change:', e.target.name, e.target.value);
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -219,12 +227,20 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
         photoFront: formData.photoFront,
         photoBack: formData.photoBack,
         amountPaid: parseFloat(formData.amountPaid) || 0,
+        amountBalance: parseFloat(formData.amountBalance) || 0,
       };
 
+      console.log('Submitting member data:', memberData);
+      console.log('amountBalance value:', formData.amountBalance, 'parsed:', parseFloat(formData.amountBalance));
+
       console.log('Submitting memberData:', memberData);
+      console.log('amountPaid value:', formData.amountPaid, 'parsed:', parseFloat(formData.amountPaid));
+      console.log('amountBalance value:', formData.amountBalance, 'parsed:', parseFloat(formData.amountBalance));
 
       const url = member ? `/api/members?id=${member._id}` : '/api/members';
       const method = member ? 'PUT' : 'POST';
+      
+      console.log('Submitting to URL:', url, 'Method:', method);
 
       const response = await fetch(url, {
         method,
@@ -430,6 +446,31 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
                       value={formData.amountPaid}
                       onChange={handleInputChange}
                       placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                      required
+                      className="pl-10 bg-gray-800 border-gray-600 text-white placeholder-gray-400 
+                                focus:border-green-500 text-base h-12 w-full"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="amountBalance" className="text-white font-medium text-sm sm:text-base mb-2 block">
+                    Amount Balance (₹) <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <BsCurrencyRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 
+                                              text-gray-400 text-base z-10" />
+                    <Input
+                      id="amountBalance"
+                      name="amountBalance"
+                      type="number"
+                      value={formData.amountBalance}
+                      onChange={handleInputChange}
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
                       required
                       className="pl-10 bg-gray-800 border-gray-600 text-white placeholder-gray-400 
                                 focus:border-green-500 text-base h-12 w-full"

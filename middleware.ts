@@ -10,10 +10,10 @@ export async function middleware(request: NextRequest) {
     "/",
     "/trainers",
     "/astrology", 
-    "/ai-planner",
     "/api/auth/login",
     "/api/trainers/auth",
-    "/api/upload"
+    "/api/upload",
+    "/api/generate-plan"
   ]
 
   // Check if it's a public route
@@ -29,11 +29,25 @@ export async function middleware(request: NextRequest) {
     }
 
     try {
-    const user = await authenticateRequest(request)
+      const user = await authenticateRequest(request)
       if (!user || user.role !== "super_admin") {
         return NextResponse.redirect(new URL("/admin/login", request.url))
       }
     } catch (error) {
+      console.error("Admin authentication error:", error)
+      return NextResponse.redirect(new URL("/admin/login", request.url))
+    }
+  }
+
+  // AI Planner protection - only accessible by super admin
+  if (pathname.startsWith("/ai-planner")) {
+    try {
+      const user = await authenticateRequest(request)
+      if (!user || user.role !== "super_admin") {
+        return NextResponse.redirect(new URL("/admin/login", request.url))
+      }
+    } catch (error) {
+      console.error("AI Planner authentication error:", error)
       return NextResponse.redirect(new URL("/admin/login", request.url))
     }
   }
@@ -45,19 +59,27 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next()
     }
 
-    // For trainer routes, check if they have a valid JWT token
-    const token = request.cookies.get("trainer-token")?.value || 
-                  request.headers.get("authorization")?.replace("Bearer ", "")
-    
-    if (!token) {
+    try {
+      const user = await authenticateRequest(request)
+      console.log('Middleware - trainer auth check:', user);
+      if (!user || user.role !== "trainer") {
+        console.log('Middleware - trainer not authenticated, redirecting');
         return NextResponse.redirect(new URL("/trainer/login", request.url))
+      }
+      console.log('Middleware - trainer authenticated successfully');
+    } catch (error) {
+      console.error("Trainer authentication error:", error)
+      return NextResponse.redirect(new URL("/trainer/login", request.url))
     }
   }
 
-  // API routes protection - only protect specific admin APIs
+  // API routes protection
   const protectedAdminApiRoutes = [
     "/api/admin/stats",
-    "/api/admin/notifications"
+    "/api/admin/notifications",
+    "/api/admin/members",
+    "/api/admin/trainers",
+    "/api/admin/add-trainer"
   ]
 
   if (protectedAdminApiRoutes.some(route => pathname.startsWith(route))) {
@@ -67,6 +89,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
       }
     } catch (error) {
+      console.error("Admin API authentication error:", error)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
   }
@@ -79,6 +102,7 @@ export const config = {
   matcher: [
     "/admin/:path*",
     "/trainer/:path*",
+    "/ai-planner",
     "/api/admin/:path*",
     "/api/trainers/:path*",
     "/api/users/:path*",

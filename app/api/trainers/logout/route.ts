@@ -8,8 +8,8 @@ export async function POST() {
       message: "Logged out successfully"
     })
 
-    // Clear the auth token cookie
-    response.cookies.set("auth-token", "", {
+    // Clear the trainer token cookie
+    response.cookies.set("trainer-token", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -19,7 +19,7 @@ export async function POST() {
 
     return response
   } catch (error) {
-    console.error("Logout error:", error)
+    console.error("Trainer logout error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
-}
+} 

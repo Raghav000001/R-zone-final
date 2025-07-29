@@ -14,7 +14,8 @@ import {
   FaUser,
   FaCalendarAlt,
   FaDollarSign,
-  FaChartBar
+  FaChartBar,
+  FaRobot
 } from "react-icons/fa";
 import { MdOutlineCardMembership } from "react-icons/md";
 import Link from "next/link";
@@ -37,10 +38,33 @@ export default function AdminDashboard() {
     monthlyRevenue: 0,
     totalTrainers: 0,
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats();
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        // Not authenticated, redirect to login
+        window.location.href = '/admin/login';
+        return;
+      }
+      
+      // User is authenticated, fetch stats
+      await fetchStats();
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      window.location.href = '/admin/login';
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -59,11 +83,29 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    // Clear any stored auth data
-    document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    window.location.href = '/admin/login';
+  const handleLogout = async () => {
+    try {
+      // Call logout API to clear server-side session
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Clear client-side cookies and redirect
+      document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      window.location.href = '/admin/login';
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-400"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -185,10 +227,10 @@ export default function AdminDashboard() {
                     Notifications
                   </Button>
                 </Link>
-                <Link href="/admin/dashboard">
-                  <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white">
-                    <FaChartBar className="mr-2" />
-                    Analytics
+                <Link href="/ai-planner">
+                  <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white">
+                    <FaRobot className="mr-2" />
+                    AI Wellness Plan
                   </Button>
                 </Link>
               </div>

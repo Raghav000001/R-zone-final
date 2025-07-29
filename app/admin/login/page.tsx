@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,26 @@ export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          // User is already logged in, redirect to dashboard
+          window.location.href = '/admin/dashboard';
+        }
+      } catch (error) {
+        // User is not logged in, stay on login page
+        console.log('User not authenticated');
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -128,14 +148,8 @@ export default function AdminLogin() {
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
 
-              {/* Demo Credentials */}
-              <div className="bg-gray-700/50 border border-gray-600 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-white mb-2">Demo Credentials:</h4>
-                <div className="text-xs text-gray-300 space-y-1">
-                  <p><strong>Email:</strong> admin@serenityyoga.com</p>
-                  <p><strong>Password:</strong> admin123</p>
-                </div>
-              </div>
+           
+          
             </form>
           </CardContent>
         </Card>

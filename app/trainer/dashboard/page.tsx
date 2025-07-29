@@ -36,6 +36,7 @@ interface Member {
   photoBack?: string;
   galleryPhotos?: string[];
   amountPaid?: number;
+  amountBalance?: number;
   photo?: string;
 }
 
@@ -45,6 +46,7 @@ interface Trainer {
   email: string;
   photo?: string;
   specialization?: string;
+  role?: string;
 }
 
 export default function TrainerDashboard() {
@@ -69,36 +71,50 @@ export default function TrainerDashboard() {
     filterMembers();
   }, [members, search, membershipFilter, statusFilter]);
 
-  const checkAuth = () => {
-    const trainerToken = localStorage.getItem('trainer-token');
-    const trainerData = localStorage.getItem('trainer-data');
-    
-    if (!trainerToken || !trainerData) {
-      window.location.href = '/trainer/login';
-      return;
-    }
-
+  const checkAuth = async () => {
     try {
-      const trainerInfo = JSON.parse(trainerData);
-      setTrainer(trainerInfo);
-      fetchMembers();
+      console.log('Checking trainer authentication...');
+      const response = await fetch('/api/trainers/me', {
+        credentials: 'include'
+      });
+      
+      console.log('Auth response status:', response.status);
+      
+      if (!response.ok) {
+        console.log('Not authenticated, redirecting to login');
+        // Not authenticated, redirect to login
+        window.location.href = '/trainer/login';
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('Auth data received:', data);
+      
+      setTrainer({
+        _id: data.trainer.id,
+        name: data.trainer.name,
+        email: data.trainer.email,
+        role: data.trainer.role
+      });
+      
+      // Fetch members after authentication
+      await fetchMembers();
     } catch (error) {
-      console.error('Error parsing trainer data:', error);
-      localStorage.removeItem('trainer-token');
-      localStorage.removeItem('trainer-data');
+      console.error('Auth check failed:', error);
       window.location.href = '/trainer/login';
+    } finally {
+      setLoading(false);
     }
   };
 
   const fetchMembers = async () => {
     try {
-      const trainerToken = localStorage.getItem('trainer-token');
-      console.log('Fetching members with token:', trainerToken);
+      console.log('Fetching members...');
       
       const response = await fetch('/api/trainers/members', {
         method: 'GET',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${trainerToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -174,11 +190,20 @@ export default function TrainerDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('trainer-token');
-    localStorage.removeItem('trainer-data');
-    document.cookie = "trainer-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    window.location.href = '/trainer/login';
+  const handleLogout = async () => {
+    try {
+      // Call logout API to clear server-side session
+      await fetch('/api/trainers/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Clear client-side cookies and redirect
+      document.cookie = "trainer-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      window.location.href = '/trainer/login';
+    }
   };
 
   if (!trainer) {
@@ -383,7 +408,13 @@ export default function TrainerDashboard() {
                       {member.amountPaid && (
                         <div className="flex items-center gap-1 sm:gap-2">
                           <BsCurrencyRupee className="text-green-400 flex-shrink-0" />
-                          <span className="text-xs sm:text-sm text-gray-300">₹{member.amountPaid}</span>
+                          <span className="text-xs sm:text-sm text-gray-300">Paid: ₹{member.amountPaid}</span>
+                        </div>
+                      )}
+                      {member.amountBalance !== undefined && member.amountBalance !== null && (
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <BsCurrencyRupee className="text-blue-400 flex-shrink-0" />
+                          <span className="text-xs sm:text-sm text-gray-300">Balance: ₹{member.amountBalance}</span>
                         </div>
                       )}
                     </div>

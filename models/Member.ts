@@ -12,6 +12,7 @@ export interface IMember extends Document {
   photoBack?: string;  // URL to Cloudinary or similar
   galleryPhotos?: string[];
   amountPaid?: number;
+  amountBalance?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +30,7 @@ const MemberSchema = new Schema<IMember>(
     photoBack: { type: String },
     galleryPhotos: [{ type: String }],
     amountPaid: { type: Number, default: 0 },
+    amountBalance: { type: Number, default: 0, required: false },
   },
   { timestamps: true }
 );

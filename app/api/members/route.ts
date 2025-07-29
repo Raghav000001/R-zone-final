@@ -11,24 +11,55 @@ async function dbConnect() {
 // GET: List all members
 export async function GET(req: NextRequest) {
   await dbConnect();
-  const members = await Member.find({});
+  const members = await Member.find({}).lean(); // Use lean() for better performance
+  console.log('GET /api/members - Members found:', members.length);
+  console.log('GET /api/members - Sample member amountBalance:', members[0]?.amountBalance);
+  console.log('GET /api/members - Sample member full data:', JSON.stringify(members[0], null, 2));
+  
+  // Debug: Check all members for amountBalance
+  members.forEach((member, index) => {
+    console.log(`Member ${index + 1} (${member.name}): amountBalance = ${member.amountBalance}`);
+  });
+  
   return NextResponse.json(members); // Return array directly, not wrapped in object
 }
 
 // POST: Create a new member (admin only)
 export async function POST(req: NextRequest) {
+  // Enforce member limit
+  const memberCount = await Member.countDocuments();
+  if (memberCount >= 450) {
+    return NextResponse.json({ error: 'Maximum member limit (450) reached.' }, { status: 400 });
+  }
   const user = await authenticateRequest(req);
   if (!user || user.role !== 'super_admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   await dbConnect();
   const data = await req.json();
+      console.log('POST /api/members - Received data:', data);
+    console.log('POST /api/members - amountBalance:', data.amountBalance);
+    console.log('POST /api/members - amountBalance type:', typeof data.amountBalance);
+    console.log('POST /api/members - amountBalance === undefined:', data.amountBalance === undefined);
+    console.log('POST /api/members - amountBalance === null:', data.amountBalance === null);
   try {
     // Coerce dates if present
     if (data.startDate) data.startDate = new Date(data.startDate);
     if (data.endDate) data.endDate = new Date(data.endDate);
+    
+    // Ensure amountBalance is always set
+    if (data.amountBalance === undefined || data.amountBalance === null) {
+      data.amountBalance = 0;
+    }
+    
+    console.log('POST /api/members - Final data before save:', data);
+    
     const member = new Member(data);
+    console.log('POST /api/members - Member before save:', member);
+    console.log('POST /api/members - Member amountBalance before save:', member.amountBalance);
     await member.save();
+    console.log('POST /api/members - Member after save:', member);
+    console.log('POST /api/members - Member amountBalance after save:', member.amountBalance);
     return NextResponse.json(member, { status: 201 });
   } catch (err: any) {
     console.error("Member API POST Error:", err);
@@ -85,11 +116,22 @@ export async function PUT(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Member id required' }, { status: 400 });
     
     const data = await req.json();
+    console.log('PUT /api/members - Received data:', data);
+    console.log('PUT /api/members - amountBalance:', data.amountBalance);
     try {
       // Coerce dates if present
       if (data.startDate) data.startDate = new Date(data.startDate);
       if (data.endDate) data.endDate = new Date(data.endDate);
+      
+      // Ensure amountBalance is always set
+      if (data.amountBalance === undefined || data.amountBalance === null) {
+        data.amountBalance = 0;
+      }
+      
+      console.log('PUT /api/members - Final data before update:', data);
+      
       const member = await Member.findByIdAndUpdate(id, data, { new: true });
+      console.log('PUT /api/members - Updated member:', member);
       if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
       return NextResponse.json(member);
     } catch (err: any) {

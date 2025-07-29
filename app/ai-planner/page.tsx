@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,12 +30,53 @@ export default function AIPlanner() {
   const [wellnessPlan, setWellnessPlan] = useState<WellnessPlan | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rawResponse, setRawResponse] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const { toast } = useToast()
   const planRef = useRef<HTMLDivElement>(null)
+
+  // Check authentication on component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me', {
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          // Not authenticated, redirect to admin login
+          window.location.href = '/admin/login';
+          return;
+        }
+        
+        const data = await response.json();
+        if (data.user.role !== 'super_admin') {
+          // Not a super admin, redirect to admin login
+          window.location.href = '/admin/login';
+          return;
+        }
+        
+        // User is authenticated and is super admin
+        setLoading(false);
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        window.location.href = '/admin/login';
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     setError(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-400"></div>
+      </div>
+    );
   }
 
   const generateWellnessPlan = async () => {
@@ -123,11 +164,12 @@ export default function AIPlanner() {
     try {
       const html2pdf = (await import('html2pdf.js')).default
       const opt = {
-        margin: 1,
+        margin: 0.5,
         filename: 'Indian_Fitness_Plan.pdf',
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
       }
       html2pdf().set(opt).from(planRef.current).save()
     } catch (error) {
@@ -369,7 +411,7 @@ export default function AIPlanner() {
                       </CardTitle>
                       <p className="text-gray-300 text-sm sm:text-base">Generated for {formData.name}</p>
                     </CardHeader>
-                    <CardContent className="space-y-4 sm:space-y-6 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
+                    <CardContent className="space-y-4 sm:space-y-6">
                       {/* Push Day */}
                       <div className="print-section">
                         <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Push Day Workout</h3>
@@ -384,6 +426,7 @@ export default function AIPlanner() {
                         </div>
                       </div>
 
+                      <div className="pdf-pagebreak" />
                       {/* Pull Day */}
                       <div className="print-section">
                         <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Pull Day Workout</h3>
@@ -398,6 +441,7 @@ export default function AIPlanner() {
                         </div>
                       </div>
 
+                      <div className="pdf-pagebreak" />
                       {/* Legs Day */}
                       <div className="print-section">
                         <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Legs Day Workout</h3>

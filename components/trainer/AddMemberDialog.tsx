@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FaCamera, FaUpload, FaUser, FaEnvelope, FaPhone, FaCalendarAlt, FaTimes } from "react-icons/fa";
 import { BsCurrencyRupee } from "react-icons/bs";
+import { useToast } from "@/hooks/use-toast"; // Add toast import
 
 interface Member {
   _id: string;
@@ -19,6 +20,7 @@ interface Member {
   photoBack?: string;
   galleryPhotos?: string[];
   amountPaid?: number;
+  amountBalance?: number;
 }
 
 interface AddMemberDialogProps {
@@ -34,6 +36,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   member,
   onSuccess
 }) => {
+  const { toast } = useToast(); // Add toast hook
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -42,6 +45,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
     startDate: "",
     endDate: "",
     amountPaid: "",
+    amountBalance: "0",
     photoFront: "",
     photoBack: "",
     galleryPhotos: [] as string[],
@@ -58,6 +62,8 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   useEffect(() => {
     if (open) {
       if (member) {
+        console.log('Loading member data:', member);
+        console.log('amountPaid:', member.amountPaid, 'amountBalance:', member.amountBalance);
         setFormData({
           name: member.name || "",
           email: member.email || "",
@@ -65,12 +71,14 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
           membershipType: member.membershipType || "",
           startDate: member.startDate ? new Date(member.startDate).toISOString().split('T')[0] : "",
           endDate: member.endDate ? new Date(member.endDate).toISOString().split('T')[0] : "",
-          amountPaid: member.amountPaid?.toString() || "",
+          amountPaid: member.amountPaid?.toString() || "0",
+          amountBalance: (member.amountBalance !== undefined && member.amountBalance !== null) ? member.amountBalance.toString() : "0",
           photoFront: member.photoFront || "",
           photoBack: member.photoBack || "",
           galleryPhotos: member.galleryPhotos || [],
         });
       } else {
+        console.log('Setting default form data with amountBalance: "0"');
         setFormData({
           name: "",
           email: "",
@@ -79,6 +87,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
           startDate: "",
           endDate: "",
           amountPaid: "",
+          amountBalance: "0",
           photoFront: "",
           photoBack: "",
           galleryPhotos: [],
@@ -98,7 +107,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
             facingMode: cameraSide === 'front' ? 'user' : 'environment' 
           } 
         });
-        const video = document.getElementById("trainer-member-camera-video") as HTMLVideoElement;
+        const video = document.getElementById("camera-video") as HTMLVideoElement;
         if (video) {
           video.srcObject = stream;
           video.play();
@@ -116,7 +125,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
     
     return () => {
       // Clean up camera stream when modal closes
-      const video = document.getElementById("trainer-member-camera-video") as HTMLVideoElement;
+      const video = document.getElementById("camera-video") as HTMLVideoElement;
       if (video && video.srcObject) {
         const tracks = (video.srcObject as MediaStream).getTracks();
         tracks.forEach((track) => track.stop());
@@ -126,6 +135,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   }, [isCameraModalOpen, isPhotoTaken, cameraSide]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('Input change:', e.target.name, e.target.value);
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -150,8 +160,8 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   };
 
   const capturePhoto = () => {
-    const video = document.getElementById("trainer-member-camera-video") as HTMLVideoElement;
-    const canvas = document.getElementById("trainer-member-camera-canvas") as HTMLCanvasElement;
+    const video = document.getElementById("camera-video") as HTMLVideoElement;
+    const canvas = document.getElementById("camera-canvas") as HTMLCanvasElement;
     
     if (video && canvas) {
       const context = canvas.getContext("2d");
@@ -173,28 +183,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
     }
   };
 
-  const handleUsePhoto = () => {
-    if (currentPhoto) {
-      console.log('Setting trainer member photo for side:', cameraSide);
-      if (cameraSide === 'front') {
-        setFormData(prev => ({ ...prev, photoFront: currentPhoto }));
-      } else {
-        setFormData(prev => ({ ...prev, photoBack: currentPhoto }));
-      }
-      
-      // Use setTimeout to ensure the photo is set before closing modal
-      setTimeout(() => {
-        setIsCameraModalOpen(false);
-        setIsPhotoTaken(false);
-        setCurrentPhoto("");
-      }, 100);
-    }
-  };
 
-  const handleRetake = () => {
-    setCurrentPhoto("");
-    setIsPhotoTaken(false);
-  };
 
   const uploadToCloudinary = async (imageData: string): Promise<string> => {
     try {
@@ -226,16 +215,23 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
         photoFront: formData.photoFront,
         photoBack: formData.photoBack,
         amountPaid: parseFloat(formData.amountPaid) || 0,
+        amountBalance: parseFloat(formData.amountBalance) || 0,
       };
 
       console.log('Submitting memberData:', memberData);
+      console.log('amountPaid value:', formData.amountPaid, 'parsed:', parseFloat(formData.amountPaid));
+      console.log('amountBalance value:', formData.amountBalance, 'parsed:', parseFloat(formData.amountBalance));
 
-      const url = member ? `/api/members?id=${member._id}` : '/api/members';
+      const url = member ? `/api/trainers/members?id=${member._id}` : '/api/trainers/members';
       const method = member ? 'PUT' : 'POST';
+      const trainerToken = typeof window !== 'undefined' ? localStorage.getItem('trainer-token') : null;
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(trainerToken ? { 'Authorization': `Bearer ${trainerToken}` } : {})
+        },
         body: JSON.stringify(memberData),
         credentials: 'include',
       });
@@ -250,7 +246,20 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
       }
     } catch (error) {
       console.error('Error saving member:', error);
-      alert('Failed to save member. Please try again.');
+      // User-friendly error: show toast for member limit and generic errors
+    let message = 'Failed to save member. Please try again.';
+    if (error instanceof Error && error.message.includes('Maximum member limit')) {
+      message = error.message;
+    }
+    if (typeof toast === 'function') {
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
+    } else {
+      alert(message);
+    }
     } finally {
       setIsSubmitting(false);
     }
@@ -266,7 +275,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   };
 
   const stopCamera = () => {
-    const video = document.getElementById("trainer-member-camera-video") as HTMLVideoElement;
+    const video = document.getElementById("camera-video") as HTMLVideoElement;
     if (video && video.srcObject) {
       const tracks = (video.srcObject as MediaStream).getTracks();
       tracks.forEach((track) => track.stop());
@@ -434,6 +443,29 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
                       value={formData.amountPaid}
                       onChange={handleInputChange}
                       placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                      required
+                      className="pl-8 sm:pl-10 bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-green-500 text-sm sm:text-base h-10 sm:h-11"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="amountBalance" className="text-white font-medium text-sm sm:text-base">
+                    Amount Balance (₹) <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <BsCurrencyRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm sm:text-base" />
+                    <Input
+                      id="amountBalance"
+                      name="amountBalance"
+                      type="number"
+                      value={formData.amountBalance}
+                      onChange={handleInputChange}
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
                       required
                       className="pl-8 sm:pl-10 bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-green-500 text-sm sm:text-base h-10 sm:h-11"
                     />
@@ -519,68 +551,90 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Camera Modal */}
+            {/* Camera Modal */}
       <Dialog open={isCameraModalOpen} onOpenChange={(open) => {
         if (!open) stopCamera();
         setIsCameraModalOpen(open);
       }}>
-        <DialogContent className="w-full max-w-[95vw] sm:max-w-md p-3 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Take Member Photo</DialogTitle>
+        <DialogContent className="w-[95vw] max-w-[95vw] sm:w-full sm:max-w-md 
+                                  h-auto max-h-[90vh] 
+                                  fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2
+                                  overflow-y-auto bg-gray-900 border-gray-700 
+                                  p-4 sm:p-5 lg:p-6 rounded-lg">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="text-lg sm:text-xl font-bold text-white text-center">
+              Take Member Photo
+            </DialogTitle>
           </DialogHeader>
-          {!isPhotoTaken ? (
-            <>
-              <video
-                id="trainer-member-camera-video"
-                autoPlay
-                playsInline
-                className="w-full h-40 sm:h-48 md:h-64 bg-gray-200 rounded-lg mb-3 sm:mb-4"
-              />
-              <canvas id="trainer-member-camera-canvas" className="hidden" />
-              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-                <Button onClick={capturePhoto} className="flex-1 text-sm sm:text-base h-10 sm:h-11">
-                  Capture
-                </Button>
-                <Button
-                  onClick={() => setIsCameraModalOpen(false)}
-                  variant="outline"
-                  className="flex-1 bg-transparent text-sm sm:text-base h-10 sm:h-11"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <img src={currentPhoto} alt="Captured" className="w-full h-40 sm:h-48 md:h-64 object-contain bg-gray-100 rounded-lg mb-3 sm:mb-4" />
-              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-                <Button
-                  onClick={() => {
-                    setCurrentPhoto("");
-                    setIsPhotoTaken(false);
-                    startCamera();
-                  }}
-                  variant="outline"
-                  className="flex-1 text-sm sm:text-base h-10 sm:h-11"
-                >
-                  Retake
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (cameraSide === 'front') {
-                      setFormData(prev => ({ ...prev, photoFront: currentPhoto }));
-                    } else {
-                      setFormData(prev => ({ ...prev, photoBack: currentPhoto }));
-                    }
-                    setIsCameraModalOpen(false);
-                  }}
-                  className="flex-1 text-sm sm:text-base h-10 sm:h-11"
-                >
-                  Use Photo
-                </Button>
-              </div>
-            </>
-          )}
+          
+          <div className="flex flex-col items-center space-y-4">
+            {!isPhotoTaken ? (
+              <>
+                <video
+                  id="camera-video"
+                  autoPlay
+                  playsInline
+                  className="w-full max-w-sm h-64 sm:h-72 bg-gray-200 rounded-lg object-cover"
+                />
+                <canvas id="camera-canvas" className="hidden" />
+                <div className="flex flex-col w-full max-w-sm space-y-3">
+                  <Button 
+                    onClick={capturePhoto} 
+                    className="bg-green-600 hover:bg-green-700 text-white
+                              text-base py-3 px-6 h-12 w-full"
+                  >
+                    <FaCamera className="mr-2" />
+                    Capture Photo
+                  </Button>
+                  <Button
+                    onClick={() => setIsCameraModalOpen(false)}
+                    variant="outline"
+                    className="border-gray-600 text-gray-300 hover:bg-gray-700
+                              text-base py-3 px-6 h-12 w-full"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <img 
+                  src={currentPhoto} 
+                  alt="Captured" 
+                  className="w-full max-w-sm h-64 sm:h-72 object-contain bg-gray-100 rounded-lg" 
+                />
+                <div className="flex flex-col w-full max-w-sm space-y-3">
+                  <Button
+                    onClick={() => {
+                      setCurrentPhoto("");
+                      setIsPhotoTaken(false);
+                      startCamera();
+                    }}
+                    variant="outline"
+                    className="border-gray-600 text-gray-300 hover:bg-gray-700
+                              text-base py-3 px-6 h-12 w-full"
+                  >
+                    <FaCamera className="mr-2" />
+                    Retake Photo
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (cameraSide === 'front') {
+                        setFormData(prev => ({ ...prev, photoFront: currentPhoto }));
+                      } else {
+                        setFormData(prev => ({ ...prev, photoBack: currentPhoto }));
+                      }
+                      setIsCameraModalOpen(false);
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white
+                              text-base py-3 px-6 h-12 w-full"
+                  >
+                    Use Photo
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </>

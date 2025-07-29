@@ -14,7 +14,6 @@ export default function Navbar() {
     { href: "/", label: "Home" },
     { href: "/gym-tour", label: "Gym Tour" },
     { href: "/yoga", label: "Yoga" },
-    { href: "/ai-planner", label: "AI Wellness Plan" },
     { href: "/astrology", label: "Astrology" },
     { href: "/trainers", label: "Trainers" },
   ]

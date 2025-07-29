@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import type { NextRequest } from "next/server";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key");
+console.log('JWT_SECRET configured with length:', JWT_SECRET.length);
 
 export interface JWTPayload {
   userId: string;
@@ -30,6 +31,7 @@ export async function generateToken(payload: JWTPayload): Promise<string> {
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
     console.log('verifyToken - starting with token length:', token.length);
+    console.log('verifyToken - token preview:', token.substring(0, 20) + '...');
     console.log('verifyToken - JWT_SECRET length:', JWT_SECRET.length);
     
     const { payload } = await jwtVerify(token, JWT_SECRET);
@@ -52,17 +54,37 @@ export function getTokenFromRequest(request: NextRequest): string | null {
   if (authHeader && authHeader.startsWith("Bearer ")) {
     return authHeader.substring(7);
   }
-  // Also check cookies
-  const token = request.cookies.get("auth-token")?.value;
+  // Check both admin and trainer cookies
+  const adminToken = request.cookies.get("auth-token")?.value;
+  const trainerToken = request.cookies.get("trainer-token")?.value;
   console.log('getTokenFromRequest - authHeader:', authHeader);
-  console.log('getTokenFromRequest - cookie token:', token ? 'exists' : 'not found');
-  return token || null;
+  console.log('getTokenFromRequest - admin token:', adminToken ? 'exists' : 'not found');
+  console.log('getTokenFromRequest - trainer token:', trainerToken ? 'exists' : 'not found');
+  console.log('getTokenFromRequest - trainer token length:', trainerToken?.length);
+  console.log('getTokenFromRequest - trainer token preview:', trainerToken ? trainerToken.substring(0, 20) + '...' : 'none');
+  
+  // For trainer-specific endpoints, prioritize trainer token
+  const pathname = request.nextUrl.pathname;
+  if (pathname.startsWith('/api/trainers/') || pathname.startsWith('/trainer/')) {
+    console.log('getTokenFromRequest - using trainer token for trainer endpoint');
+    return trainerToken || null;
+  }
+  
+  // For admin-specific endpoints, prioritize admin token
+  if (pathname.startsWith('/api/admin/') || pathname.startsWith('/admin/')) {
+    console.log('getTokenFromRequest - using admin token for admin endpoint');
+    return adminToken || null;
+  }
+  
+  // Default fallback
+  return adminToken || trainerToken || null;
 }
 
 export async function authenticateRequest(request: NextRequest): Promise<JWTPayload | null> {
   console.log('authenticateRequest - starting...');
   const token = getTokenFromRequest(request);
   console.log('authenticateRequest - token found:', !!token);
+  console.log('authenticateRequest - token length:', token?.length);
   if (!token) {
     console.log('authenticateRequest - no token found');
     return null;
