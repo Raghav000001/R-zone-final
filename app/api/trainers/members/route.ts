@@ -1,4 +1,3 @@
-console.log('[route.ts] loaded');
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import Member from '../../../../models/Member';
@@ -76,7 +75,7 @@ export async function GET(req: NextRequest) {
   
   await dbConnect();
   const members = await Member.find({});
-  return NextResponse.json(members); // Return array directly, not wrapped in object
+  return NextResponse.json(members);
 }
 
 // POST: Create a new member (trainer access with notification)
@@ -86,20 +85,20 @@ export async function POST(req: NextRequest) {
   if (memberCount >= 450) {
     return NextResponse.json({ error: 'Maximum member limit (450) reached.' }, { status: 400 });
   }
+  
   console.log('[POST] /api/trainers/members called');
   const trainer = await verifyTrainerToken(req);
   if (!trainer) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  
   await dbConnect();
   const data = await req.json();
   console.log('[POST] /api/trainers/members - Received data:', data);
   console.log('[POST] /api/trainers/members - photoFront:', data.photoFront ? 'exists' : 'not set');
   console.log('[POST] /api/trainers/members - photoBack:', data.photoBack ? 'exists' : 'not set');
   console.log('[POST] /api/trainers/members - amountBalance:', data.amountBalance);
-  console.log('[POST] /api/trainers/members - amountBalance type:', typeof data.amountBalance);
-  console.log('[POST] /api/trainers/members - amountBalance === undefined:', data.amountBalance === undefined);
-  console.log('[POST] /api/trainers/members - amountBalance === null:', data.amountBalance === null);
+  
   try {
     // Coerce dates if present
     if (data.startDate) data.startDate = new Date(data.startDate);
@@ -118,6 +117,7 @@ export async function POST(req: NextRequest) {
     await member.save();
     console.log('[POST] /api/trainers/members - Member after save:', member);
     console.log('[POST] /api/trainers/members - Member amountBalance after save:', member.amountBalance);
+    
     // Create notification for admin
     await createNotification(
       'member_added',
@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       member._id.toString(),
       member.name
     );
+    
     return NextResponse.json(member, { status: 201 });
   } catch (err: any) {
     console.error("Trainer Member API POST Error:", err);
@@ -138,22 +139,26 @@ export async function PUT(req: NextRequest) {
   console.log('[PUT] /api/trainers/members called');
   const trainer = await verifyTrainerToken(req);
   if (!trainer) {
-    console.log('Unauthorized access attempt'); // Debug log
+    console.log('Unauthorized access attempt');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  console.log('Trainer verified:', trainer); // Debug log
+  
+  console.log('Trainer verified:', trainer);
   await dbConnect();
-  console.log('Database connected'); // Debug log
+  console.log('Database connected');
+  
   const url = new URL(req.url);
   const id = url.searchParams.get('id');
   if (!id) {
-    console.log('No member ID provided'); // Debug log
+    console.log('No member ID provided');
     return NextResponse.json({ error: 'Member id required' }, { status: 400 });
   }
-  console.log('Member ID retrieved:', id); // Debug log
+  
+  console.log('Member ID retrieved:', id);
   const data = await req.json();
-  console.log('Received data for update:', data); // Debug log
+  console.log('Received data for update:', data);
   console.log('[PUT] /api/trainers/members - amountBalance:', data.amountBalance);
+  
   try {
     // Coerce dates if present
     if (data.startDate) data.startDate = new Date(data.startDate);
@@ -167,11 +172,13 @@ export async function PUT(req: NextRequest) {
     console.log('[PUT] /api/trainers/members - Final data before update:', data);
     const member = await Member.findByIdAndUpdate(id, data, { new: true });
     console.log('[PUT] /api/trainers/members - Updated member:', member);
+    
     if (!member) {
-      console.log('Member not found'); // Debug log
+      console.log('Member not found');
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
-    console.log('Creating notification for member update'); // Debug log
+    
+    console.log('Creating notification for member update');
     // Create notification for admin
     await createNotification(
       'member_updated',
@@ -180,7 +187,8 @@ export async function PUT(req: NextRequest) {
       member._id.toString(),
       member.name
     );
-    console.log('Notification created successfully'); // Debug log
+    console.log('Notification created successfully');
+    
     return NextResponse.json(member);
   } catch (err: any) {
     console.error("Trainer Member API PUT Error:", err);
@@ -195,15 +203,19 @@ export async function DELETE(req: NextRequest) {
   if (!trainer) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  
   await dbConnect();
   const url = new URL(req.url);
   const id = url.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Member id required' }, { status: 400 });
+  
   try {
     const member = await Member.findById(id);
     if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+    
     const memberName = member.name;
     await Member.findByIdAndDelete(id);
+    
     // Create notification for admin
     await createNotification(
       'member_deleted',
@@ -212,16 +224,17 @@ export async function DELETE(req: NextRequest) {
       id,
       memberName
     );
+    
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error("Trainer Member API DELETE Error:", err);
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
-} 
+}
 
 // Temporary test route to test notification creation
 export async function TEST_NOTIFICATION() {
-  console.log('Testing notification creation'); // Debug log
+  console.log('Testing notification creation');
   try {
     await createNotification(
       'member_updated',
@@ -230,8 +243,8 @@ export async function TEST_NOTIFICATION() {
       'test_member_id',
       'Test Member'
     );
-    console.log('Test notification created successfully'); // Debug log
+    console.log('Test notification created successfully');
   } catch (error) {
-    console.error('Error in test notification creation:', error); // Debug log
+    console.error('Error in test notification creation:', error);
   }
 } 

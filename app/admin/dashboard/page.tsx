@@ -138,12 +138,22 @@ export default function AdminDashboard() {
         "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax",
         "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/admin; SameSite=Lax",
         "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api; SameSite=Lax",
-        "trainer-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax"
+        "trainer-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax",
+        "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=" + window.location.hostname,
+        "trainer-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=" + window.location.hostname
       ];
       
       cookiesToClear.forEach(cookie => {
         document.cookie = cookie;
       });
+      
+      // Additional mobile-specific cookie clearing
+      if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        console.log('Mobile device detected, additional cookie clearing...');
+        // Clear cookies with different attributes for mobile
+        document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure";
+        document.cookie = "trainer-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure";
+      }
       
       // Clear any localStorage items
       if (typeof window !== 'undefined') {
@@ -154,7 +164,13 @@ export default function AdminDashboard() {
       console.log('Redirecting to login page...');
       
       // Use replace to prevent back button issues and add logout parameter
-      window.location.replace('/admin/login?logout=true');
+      // Add longer delay for mobile devices
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const delay = isMobile ? 500 : 100;
+      
+      setTimeout(() => {
+        window.location.replace('/admin/login?logout=true');
+      }, delay);
       
     } catch (error) {
       console.error('Logout error:', error);

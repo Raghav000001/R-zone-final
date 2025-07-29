@@ -34,6 +34,13 @@ export default function AdminLogin() {
         return;
       }
       
+      // Additional check for mobile browsers - clear any stale cookies
+      if (typeof window !== 'undefined') {
+        // Force clear any existing auth cookies on mobile
+        document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+        document.cookie = "trainer-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+      }
+      
       try {
         console.log('Checking admin authentication...');
         const response = await fetch('/api/auth/me', {
@@ -41,6 +48,7 @@ export default function AdminLogin() {
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
           }
         });
         console.log('Auth check response:', response.status);
@@ -60,8 +68,9 @@ export default function AdminLogin() {
       }
     };
 
-    // Add a delay to prevent immediate re-login after logout
-    const timer = setTimeout(checkAuth, 1000);
+    // Add a longer delay for mobile browsers
+    const delay = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? 2000 : 1000;
+    const timer = setTimeout(checkAuth, delay);
     return () => clearTimeout(timer);
   }, [hasCheckedAuth]);
 
