@@ -1,26 +1,111 @@
-"use client"
+"use client";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Heart, Dumbbell, Apple, Shield, Clock, Star, Users, Zap, Target, Download } from "lucide-react";
+import { ChangeEvent } from "react";
 
-import { useState, useRef, useEffect } from "react"
-import Image from "next/image"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Loader2, Download, Printer, AlertCircle, Clock } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { WellnessPlan, WellnessFormData } from "@/types/wellness"
-import { motion } from "framer-motion"
-import { FaDumbbell, FaCrosshairs, FaBolt } from "react-icons/fa"
+export interface WellnessFormData {
+  name: string;
+  age: string;
+  gender: string;
+  weight?: string;
+  height?: string;
+  fitnessGoal: string;
+  lifestyle?: string;
+  medicalConditions?: string;
+  dietPreference?: string;
+}
 
-interface DailyUsage {
-  date: string
-  count: number
+interface Exercise {
+  name: string;
+  alternatives: string[];
+  prescription: string;
+  rest: string;
+  reasoning: string;
+  notes?: string;
+}
+
+interface WorkoutDay {
+  name: string;
+  day?: string;
+  focus: string;
+  reasoning: string;
+  exercises: Exercise[];
+}
+
+interface CardioPlan {
+  type: string;
+  frequency: string;
+  alternatives: string[];
+  sessions: string[];
+  reasoning: string;
+}
+
+interface Meal {
+  hindi_name: string;
+  english_name: string;
+  ingredients: string[];
+  preparation: string;
+  reasoning: string;
+  alternatives: string[];
+}
+
+interface NutritionPlan {
+  diet_type: string;
+  total_macros: {
+    calories: string;
+    protein: string;
+    carbs: string;
+    fats: string;
+  };
+  total_micros: {
+    vitamins: string;
+    minerals: string;
+  };
+  meals: {
+    breakfast: Meal;
+    lunch: Meal;
+    dinner: Meal;
+    snacks: Meal;
+  };
+  ayurvedic_notes: string[];
+  budget_tips: string[];
+  local_alternatives: string[];
+}
+
+interface Supplement {
+  name: string;
+  reasoning: string;
+  alternatives: string[];
+  dosage: string;
+  timing: string;
+}
+
+interface LifestyleRecommendation {
+  category: string;
+  recommendations: string[];
+  reasoning: string;
+}
+
+interface AIPlan {
+  analysis_reasoning: string;
+  plan_duration: string;
+  workout_days: WorkoutDay[];
+  cardio_plan: CardioPlan;
+  nutrition_plan: NutritionPlan;
+  supplements: Supplement[];
+  lifestyle_recommendations: LifestyleRecommendation[];
+  progression: string;
+  precautions: string[];
+  alternatives_summary: string;
 }
 
 export default function AIPlanner() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<WellnessFormData>({
     name: "",
     age: "",
     gender: "",
@@ -30,669 +115,1030 @@ export default function AIPlanner() {
     lifestyle: "",
     medicalConditions: "",
     dietPreference: "",
-  })
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [wellnessPlan, setWellnessPlan] = useState<WellnessPlan | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [rawResponse, setRawResponse] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [dailyUsage, setDailyUsage] = useState<DailyUsage>({ date: '', count: 0 })
-  const { toast } = useToast()
-  const planRef = useRef<HTMLDivElement>(null)
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiPlan, setAIPlan] = useState<AIPlan | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [dailyUsage, setDailyUsage] = useState(0);
+  const [showPlan, setShowPlan] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
-  // Check authentication on component mount
+  // Check daily usage on component mount
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('/api/auth/me', {
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          // Not authenticated, redirect to admin login
-          window.location.href = '/admin/login';
-          return;
-        }
-        
-        const data = await response.json();
-        if (data.user.role !== 'super_admin') {
-          // Not a super admin, redirect to admin login
-          window.location.href = '/admin/login';
-          return;
-        }
-        
-        // User is authenticated and is super admin
-        setLoading(false);
-        checkDailyUsage();
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        window.location.href = '/admin/login';
-      }
-    };
-
-    checkAuth();
-  }, [])
-
-  const checkDailyUsage = () => {
-    const today = new Date().toDateString()
-    const stored = localStorage.getItem('ai_planner_usage')
-    
-    if (stored) {
-      try {
-        const usage: DailyUsage = JSON.parse(stored)
-        if (usage.date === today) {
-          setDailyUsage(usage)
-        } else {
-          // New day, reset count
-          const newUsage = { date: today, count: 0 }
-          setDailyUsage(newUsage)
-          localStorage.setItem('ai_planner_usage', JSON.stringify(newUsage))
-        }
-      } catch (error) {
-        // Invalid storage data, reset
-        const newUsage = { date: today, count: 0 }
-        setDailyUsage(newUsage)
-        localStorage.setItem('ai_planner_usage', JSON.stringify(newUsage))
-      }
-    } else {
-      // First time usage
-      const newUsage = { date: today, count: 0 }
-      setDailyUsage(newUsage)
-      localStorage.setItem('ai_planner_usage', JSON.stringify(newUsage))
-    }
-  }
+    const today = new Date().toDateString();
+    const usage = parseInt(localStorage.getItem(`usage_${today}`) || '0');
+    setDailyUsage(usage);
+  }, []);
 
   const updateDailyUsage = () => {
-    const today = new Date().toDateString()
-    const newUsage = { date: today, count: dailyUsage.count + 1 }
-    setDailyUsage(newUsage)
-    localStorage.setItem('ai_planner_usage', JSON.stringify(newUsage))
-  }
+    const today = new Date().toDateString();
+    const newUsage = dailyUsage + 1;
+    setDailyUsage(newUsage);
+    localStorage.setItem(`usage_${today}`, newUsage.toString());
+  };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-    setError(null)
-  }
+  const handleInputChange = (field: keyof WellnessFormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setError(null);
+  };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-400"></div>
-      </div>
-    );
-  }
-
-  const generateWellnessPlan = async () => {
-    // Check daily limit
-    if (dailyUsage.count >= 10) {
-      toast({
-        title: "Daily Limit Reached",
-        description: "You have reached your daily limit of 10 fitness plan generations. Please try again tomorrow.",
-        variant: "destructive",
-      })
-      return
+  const generatePlan = async () => {
+    if (dailyUsage >= 10) {
+      setError("Daily limit of 10 plans reached. Try again tomorrow!");
+      return;
     }
 
     if (!formData.name || !formData.age || !formData.fitnessGoal) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields (name, age, and fitness goal).",
-        variant: "destructive",
-      })
-      return
+      setError("Please fill in all required fields (Name, Age, Goal)");
+      return;
     }
 
-    setIsGenerating(true)
-    setError(null)
+    setIsGenerating(true);
+    setError(null);
+    setAIPlan(null);
+    setShowPlan(false);
 
     try {
-      const response = await fetch('/api/generate-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const resp = await fetch("/api/generate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: formData.name,
-          age: parseInt(formData.age),
-          gender: formData.gender,
-          height: formData.height ? parseInt(formData.height) : undefined,
-          weight: formData.weight ? parseInt(formData.weight) : undefined,
-          fitnessGoal: formData.fitnessGoal,
-          lifestyle: formData.lifestyle,
-          medicalConditions: formData.medicalConditions,
-          dietPreference: formData.dietPreference,
+          ...formData,
+          age: Number(formData.age),
+          weight: Number(formData.weight),
+          height: Number(formData.height),
         }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate Indian fitness plan')
-      }
-
-      // Update daily usage count
-      updateDailyUsage()
-
-      // Check if we have a valid plan or if parsing failed
-      if (data.plan && data.rawContent) {
-        // Parsing failed, show the raw content for debugging
-        console.log('Raw AI response:', data.rawContent);
-        console.log('Parse error:', data.parseError);
-        
-        // Store raw response for debugging
-        setRawResponse(data.rawContent);
-        
-        // Still set the plan but also show a warning
-        setWellnessPlan(data.plan);
-        toast({
-          title: "Plan Generated (with warnings)",
-          description: "Plan was generated but there were parsing issues. Check console for details.",
-          variant: "destructive",
-        });
-      } else if (data.plan) {
-        // Successfully parsed plan
-        setWellnessPlan(data.plan);
-        setRawResponse(null); // Clear any previous raw response
-        toast({
-          title: "Indian Fitness Plan Generated!",
-          description: "Your personalized gym and nutrition plan is ready.",
-        });
+      });
+      const data = await resp.json();
+      
+      if (!resp.ok) throw new Error(data.error || "Failed to generate plan!");
+      
+      if (data.plan) {
+        setAIPlan(data.plan);
+        setShowPlan(true);
+        updateDailyUsage();
+        // Smooth scroll to results
+        setTimeout(() => {
+          document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      } else if (data.parseError) {
+        setError(`AI Response Error: ${data.parseError}`);
       } else {
-        throw new Error('No plan data received from API');
+        setError("No plan received from AI");
       }
-    } catch (error) {
-      console.error('Error generating plan:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate Indian fitness plan'
-      setError(errorMessage)
-      toast({
-        title: "Generation Failed",
-        description: errorMessage,
-        variant: "destructive",
-      })
+    } catch (err: any) {
+      setError(err.message);
     } finally {
-      setIsGenerating(false)
+      setIsGenerating(false);
     }
-  }
+  };
 
   const downloadPDF = async () => {
-    if (!planRef.current) return
-
+    if (!aiPlan) return;
+    
+    setIsDownloading(true);
     try {
-      const html2pdf = (await import('html2pdf.js')).default
-      const opt = {
-        margin: 0.5,
-        filename: 'Indian_Fitness_Plan.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] }
+      // Import jsPDF dynamically to avoid SSR issues
+      const { jsPDF } = await import('jspdf');
+      
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      let yPosition = margin;
+
+      // Helper function to add text with word wrapping
+      const addWrappedText = (text: string, x: number, y: number, maxWidth: number, fontSize: number = 10): number => {
+        pdf.setFontSize(fontSize);
+        const lines = pdf.splitTextToSize(text, maxWidth);
+        
+        for (let i = 0; i < lines.length; i++) {
+          // Check if we need a new page
+          if (y + (i * 5) > pageHeight - margin) {
+            pdf.addPage();
+            y = margin;
+          }
+          pdf.text(lines[i], x, y + (i * 5));
+        }
+        return y + (lines.length * 5) + 3;
+      };
+
+      // Title
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('AI Fitness & Nutrition Plan', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 15;
+
+      // User Info
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Name: ${formData.name}`, margin, yPosition);
+      yPosition += 8;
+      pdf.text(`Age: ${formData.age} | Goal: ${formData.fitnessGoal}`, margin, yPosition);
+      yPosition += 8;
+      if (formData.weight && formData.height) {
+        pdf.text(`Weight: ${formData.weight}kg | Height: ${formData.height}cm`, margin, yPosition);
+        yPosition += 8;
       }
-      html2pdf().set(opt).from(planRef.current).save()
+      yPosition += 5;
+
+      // Analysis
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('AI Analysis & Reasoning', margin, yPosition);
+      yPosition += 8;
+      yPosition = addWrappedText(aiPlan.analysis_reasoning, margin, yPosition, pageWidth - 2 * margin, 10);
+      yPosition += 5;
+
+      // Workout Plan
+      if (aiPlan.workout_days && aiPlan.workout_days.length > 0) {
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Workout Plan', margin, yPosition);
+        yPosition += 10;
+
+        aiPlan.workout_days.forEach((workout, idx) => {
+          // Check for new page
+          if (yPosition > pageHeight - 50) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+
+          pdf.setFontSize(12);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(`${workout.name} - ${workout.focus}`, margin, yPosition);
+          yPosition += 8;
+
+          workout.exercises.forEach((exercise, i) => {
+            if (yPosition > pageHeight - 30) {
+              pdf.addPage();
+              yPosition = margin;
+            }
+
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`${i + 1}. ${exercise.name}`, margin + 5, yPosition);
+            yPosition += 5;
+            
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(`${exercise.prescription} | Rest: ${exercise.rest}`, margin + 10, yPosition);
+            yPosition += 5;
+            
+            yPosition = addWrappedText(exercise.reasoning, margin + 10, yPosition, pageWidth - 2 * margin - 10, 9);
+            yPosition += 3;
+          });
+          yPosition += 5;
+        });
+      }
+
+      // Nutrition Plan
+      if (aiPlan.nutrition_plan) {
+        if (yPosition > pageHeight - 100) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Nutrition Plan', margin, yPosition);
+        yPosition += 10;
+
+        // Macros
+        pdf.setFontSize(11);
+        pdf.text('Daily Macros:', margin, yPosition);
+        yPosition += 6;
+        pdf.setFontSize(10);
+        const macros = aiPlan.nutrition_plan.total_macros;
+        pdf.text(`Calories: ${macros.calories} | Protein: ${macros.protein} | Carbs: ${macros.carbs} | Fats: ${macros.fats}`, margin + 5, yPosition);
+        yPosition += 10;
+
+        // Meals
+        Object.entries(aiPlan.nutrition_plan.meals).forEach(([mealTime, meal]: [string, any]) => {
+          if (yPosition > pageHeight - 40) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+
+          pdf.setFontSize(11);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(`${mealTime.charAt(0).toUpperCase() + mealTime.slice(1)}:`, margin, yPosition);
+          yPosition += 6;
+
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(`${meal.hindi_name} (${meal.english_name})`, margin + 5, yPosition);
+          yPosition += 5;
+
+          pdf.text(`Ingredients: ${meal.ingredients.join(', ')}`, margin + 5, yPosition);
+          yPosition += 5;
+
+          yPosition = addWrappedText(`Preparation: ${meal.preparation}`, margin + 5, yPosition, pageWidth - 2 * margin - 5, 9);
+          yPosition += 5;
+        });
+      }
+
+      // Supplements
+      if (aiPlan.supplements && aiPlan.supplements.length > 0) {
+        if (yPosition > pageHeight - 50) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Supplements', margin, yPosition);
+        yPosition += 10;
+
+        aiPlan.supplements.forEach((supplement, i) => {
+          if (yPosition > pageHeight - 25) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(`${i + 1}. ${supplement.name}`, margin, yPosition);
+          yPosition += 5;
+
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(`Dosage: ${supplement.dosage} | Timing: ${supplement.timing}`, margin + 5, yPosition);
+          yPosition += 5;
+
+          yPosition = addWrappedText(supplement.reasoning, margin + 5, yPosition, pageWidth - 2 * margin - 5, 9);
+          yPosition += 8;
+        });
+      }
+
+      // Precautions
+      if (aiPlan.precautions && aiPlan.precautions.length > 0) {
+        if (yPosition > pageHeight - 50) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Safety Precautions', margin, yPosition);
+        yPosition += 10;
+
+        aiPlan.precautions.forEach((precaution, i) => {
+          if (yPosition > pageHeight - 20) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+
+          yPosition = addWrappedText(`• ${precaution}`, margin, yPosition, pageWidth - 2 * margin, 10);
+          yPosition += 3;
+        });
+      }
+
+      // Footer
+      const totalPages = pdf.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Generated by AI Fitness Planner - Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      }
+
+      // Save the PDF
+      pdf.save(`${formData.name}_Fitness_Plan.pdf`);
+      
     } catch (error) {
-      console.error('Error downloading PDF:', error)
-      toast({
-        title: "Download Failed",
-        description: "Failed to download PDF. Please try again.",
-        variant: "destructive",
-      })
+      console.error('PDF generation error:', error);
+      setError('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsDownloading(false);
     }
-  }
+  };
 
-  const printPlan = () => {
-    if (!planRef.current) return
-    window.print()
-  }
-
-  const remainingRequests = Math.max(0, 10 - dailyUsage.count)
-
-  return (
-    <div className="min-h-screen relative overflow-x-hidden">
-      {/* Background Image */}
-      <div className="absolute inset-0 z-0">
-        <Image
-          src="/ai-wellnessbanner.jpg"
-          alt="AI Wellness Background"
-          fill
-          className="object-cover"
-          priority
-        />
-        <div className="absolute inset-0 bg-black/60"></div>
-      </div>
-
-      <div className="relative z-10 pt-20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-7xl">
-          {/* Header */}
-          <motion.div 
-            className="text-center mb-12 sm:mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <div className="inline-flex items-center space-x-2 bg-orange-500/20 backdrop-blur-sm border border-orange-500/30 px-4 sm:px-6 py-2 sm:py-3 rounded-full mb-4 sm:mb-6">
-                <FaDumbbell className="h-4 w-4 sm:h-5 sm:w-5 text-orange-400" />
-                <span className="text-orange-300 font-medium text-sm sm:text-base">AI-Powered Indian Fitness</span>
-              </div>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 sm:mb-6 leading-tight">
-                 Fitness Plan Generator
-              </h1>
-              <p className="text-base sm:text-lg md:text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed px-4">
-                Get a customized Indian gym routine with Push-Pull-Leg splits, FST-7 training, and traditional Indian nutrition plan tailored specifically to your goals, lifestyle, and dietary preferences using DeepSeek AI.
-              </p>
-              
-              {/* Daily Usage Counter */}
-              <div className="inline-flex items-center space-x-2 bg-blue-500/20 backdrop-blur-sm border border-blue-500/30 px-4 py-2 rounded-full mt-4">
-                <Clock className="h-4 w-4 text-blue-400" />
-                <span className="text-blue-300 font-medium text-sm">
-                  Daily Requests: {dailyUsage.count}/10 remaining
-                </span>
-              </div>
-            </motion.div>
-          </motion.div>
-
-          {/* Main Content */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 sm:gap-8 xl:gap-12">
-            {/* Form Section */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="xl:sticky xl:top-8 xl:h-fit order-2 xl:order-1"
-            >
-              <Card className="bg-gray-900/80 backdrop-blur-sm border-gray-700 shadow-2xl">
-                <CardHeader className="pb-4 sm:pb-6">
-                  <CardTitle className="flex items-center space-x-2 sm:space-x-3 text-xl sm:text-2xl">
-                    <FaCrosshairs className="h-5 w-5 sm:h-7 sm:w-7 text-orange-400" />
-                    <span className="text-white">Tell Us About Yourself</span>
-                  </CardTitle>
-                  {remainingRequests <= 3 && (
-                    <div className="flex items-center space-x-2 p-2 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
-                      <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                      <span className="text-yellow-300 text-sm">
-                        {remainingRequests === 0 
-                          ? "Daily limit reached. Try again tomorrow." 
-                          : `Only ${remainingRequests} requests remaining today.`}
-                      </span>
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-4 sm:space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="name" className="text-white font-medium text-sm sm:text-base">Full Name *</Label>
-                      <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) => handleInputChange('name', e.target.value)}
-                        placeholder="Enter your full name"
-                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-orange-500 text-sm sm:text-base"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="age" className="text-white font-medium text-sm sm:text-base">Age *</Label>
-                      <Input
-                        id="age"
-                        type="number"
-                        value={formData.age}
-                        onChange={(e) => handleInputChange('age', e.target.value)}
-                        placeholder="Enter your age"
-                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-orange-500 text-sm sm:text-base"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-white font-medium text-sm sm:text-base">Gender *</Label>
-                      <Select onValueChange={(value) => handleInputChange('gender', value)}>
-                        <SelectTrigger className="bg-gray-800 border-gray-600 text-white focus:border-orange-500 text-sm sm:text-base">
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-800 border-gray-600">
-                          <SelectItem value="male" className="text-white hover:bg-gray-700">Male</SelectItem>
-                          <SelectItem value="female" className="text-white hover:bg-gray-700">Female</SelectItem>
-                          <SelectItem value="other" className="text-white hover:bg-gray-700">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="weight" className="text-white font-medium text-sm sm:text-base">Weight (kg)</Label>
-                      <Input
-                        id="weight"
-                        type="number"
-                        value={formData.weight}
-                        onChange={(e) => handleInputChange('weight', e.target.value)}
-                        placeholder="Enter weight"
-                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-orange-500 text-sm sm:text-base"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="height" className="text-white font-medium text-sm sm:text-base">Height (cm)</Label>
-                      <Input
-                        id="height"
-                        type="number"
-                        value={formData.height}
-                        onChange={(e) => handleInputChange('height', e.target.value)}
-                        placeholder="Enter height"
-                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-orange-500 text-sm sm:text-base"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-white font-medium text-sm sm:text-base">Fitness Goals *</Label>
-                      <Select onValueChange={(value) => handleInputChange('fitnessGoal', value)}>
-                        <SelectTrigger className="bg-gray-800 border-gray-600 text-white focus:border-orange-500 text-sm sm:text-base">
-                          <SelectValue placeholder="Select your primary goal" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-800 border-gray-600">
-                          <SelectItem value="muscle-building" className="text-white hover:bg-gray-700">Muscle Building</SelectItem>
-                          <SelectItem value="strength" className="text-white hover:bg-gray-700">Strength Training</SelectItem>
-                          <SelectItem value="weight-loss" className="text-white hover:bg-gray-700">Fat Loss</SelectItem>
-                          <SelectItem value="general-fitness" className="text-white hover:bg-gray-700">General Fitness</SelectItem>
-                          <SelectItem value="athletic-performance" className="text-white hover:bg-gray-700">Athletic Performance</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-white font-medium text-sm sm:text-base">Lifestyle</Label>
-                      <Select onValueChange={(value) => handleInputChange('lifestyle', value)}>
-                        <SelectTrigger className="bg-gray-800 border-gray-600 text-white focus:border-orange-500 text-sm sm:text-base">
-                          <SelectValue placeholder="Select your lifestyle" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-800 border-gray-600">
-                          <SelectItem value="sedentary" className="text-white hover:bg-gray-700">Sedentary (Desk job, minimal activity)</SelectItem>
-                          <SelectItem value="moderate" className="text-white hover:bg-gray-700">Moderate (Some exercise, active lifestyle)</SelectItem>
-                          <SelectItem value="active" className="text-white hover:bg-gray-700">Active (Regular exercise, physical job)</SelectItem>
-                          <SelectItem value="athlete" className="text-white hover:bg-gray-700">Athlete (High-level training)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-white font-medium text-sm sm:text-base">Diet Preference</Label>
-                      <Select onValueChange={(value) => handleInputChange('dietPreference', value)}>
-                        <SelectTrigger className="bg-gray-800 border-gray-600 text-white focus:border-orange-500 text-sm sm:text-base">
-                          <SelectValue placeholder="Select your diet preference" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-800 border-gray-600">
-                          <SelectItem value="Vegetarian" className="text-white hover:bg-gray-700">Vegetarian</SelectItem>
-                          <SelectItem value="Non-Vegetarian" className="text-white hover:bg-gray-700">Non-Vegetarian</SelectItem>
-                          <SelectItem value="Flexible" className="text-white hover:bg-gray-700">Flexible</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="medicalConditions" className="text-white font-medium text-sm sm:text-base">Medical Conditions (Optional)</Label>
-                      <Textarea
-                        id="medicalConditions"
-                        value={formData.medicalConditions}
-                        onChange={(e) => handleInputChange('medicalConditions', e.target.value)}
-                        placeholder="Any medical conditions or injuries we should know about?"
-                        rows={3}
-                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-orange-500 resize-none text-sm sm:text-base"
-                      />
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={generateWellnessPlan}
-                    disabled={isGenerating || remainingRequests === 0}
-                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-base sm:text-lg py-4 sm:py-6 font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
-                        Generating Your Plan...
-                      </>
-                    ) : remainingRequests === 0 ? (
-                      <>
-                        <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                        Daily Limit Reached
-                      </>
-                    ) : (
-                      <>
-                        <FaBolt className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                        Generate My Fitness Plan ({remainingRequests} left)
-                      </>
-                    )}
-                  </Button>
-
-                  {error && (
-                    <div className="flex items-center space-x-2 p-3 sm:p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
-                      <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 flex-shrink-0" />
-                      <span className="text-red-300 text-sm sm:text-base">{error}</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* Plan Display Section */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="space-y-6 order-1 xl:order-2"
-            >
-              {wellnessPlan && (
-                <div ref={planRef} className="print-container">
-                  <Card className="bg-gray-900/80 backdrop-blur-sm border-gray-700 shadow-2xl print-card">
-                    <CardHeader className="print-header">
-                      <CardTitle className="text-xl sm:text-2xl font-bold flex items-center text-white">
-                        <FaDumbbell className="w-5 h-5 sm:w-6 sm:h-6 mr-2 text-orange-400" />
-                        Your Indian Fitness Plan
-                      </CardTitle>
-                      <p className="text-gray-300 text-sm sm:text-base">Generated for {formData.name}</p>
-                    </CardHeader>
-                    <CardContent className="space-y-4 sm:space-y-6">
-                      {/* Push Day */}
-                      <div className="print-section">
-                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Push Day Workout</h3>
-                        <div className="space-y-2">
-                          {wellnessPlan.push_day.exercises.map((exercise, index) => (
-                            <div key={index} className="bg-gray-800/50 p-3 sm:p-4 rounded-lg border border-gray-700">
-                              <p className="font-medium text-white text-sm sm:text-base">{exercise.name}</p>
-                              <p className="text-gray-300 text-xs sm:text-sm">Sets: {exercise.sets}</p>
-                              <p className="text-gray-300 text-xs sm:text-sm">Rest: {exercise.rest}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pdf-pagebreak" />
-                      {/* Pull Day */}
-                      <div className="print-section">
-                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Pull Day Workout</h3>
-                        <div className="space-y-2">
-                          {wellnessPlan.pull_day.exercises.map((exercise, index) => (
-                            <div key={index} className="bg-gray-800/50 p-3 sm:p-4 rounded-lg border border-gray-700">
-                              <p className="font-medium text-white text-sm sm:text-base">{exercise.name}</p>
-                              <p className="text-gray-300 text-xs sm:text-sm">Sets: {exercise.sets}</p>
-                              <p className="text-gray-300 text-xs sm:text-sm">Rest: {exercise.rest}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pdf-pagebreak" />
-                      {/* Legs Day */}
-                      <div className="print-section">
-                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Legs Day Workout</h3>
-                        <div className="space-y-2">
-                          {wellnessPlan.legs_day.exercises.map((exercise, index) => (
-                            <div key={index} className="bg-gray-800/50 p-3 sm:p-4 rounded-lg border border-gray-700">
-                              <p className="font-medium text-white text-sm sm:text-base">{exercise.name}</p>
-                              <p className="text-gray-300 text-xs sm:text-sm">Sets: {exercise.sets}</p>
-                              <p className="text-gray-300 text-xs sm:text-sm">Rest: {exercise.rest}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Cardio & HIIT */}
-                      {wellnessPlan.cardio_HIIT && (
-                        <div className="print-section">
-                          <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Cardio & HIIT Training</h3>
-                          <div className="bg-gray-800/50 p-3 sm:p-4 rounded-lg border border-gray-700">
-                            <p className="mb-2 text-white text-sm sm:text-base">Weekly Frequency: {wellnessPlan.cardio_HIIT.weekly_frequency || "3x/week"}</p>
-                            <div className="space-y-1">
-                              {wellnessPlan.cardio_HIIT.routine && wellnessPlan.cardio_HIIT.routine.map((exercise, index) => (
-                                <p key={index} className="text-gray-300 text-xs sm:text-sm">• {exercise}</p>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* FST-7 Training */}
-                      {wellnessPlan.fst7_day && (
-                        <div className="print-section">
-                          <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">FST-7 Training</h3>
-                          <div className="bg-gray-800/50 p-3 sm:p-4 rounded-lg border border-gray-700">
-                            <p className="mb-2 text-white text-sm sm:text-base">Target Muscle: {wellnessPlan.fst7_day.target_muscle || "Chest or Biceps"}</p>
-                            <div className="space-y-1">
-                              {wellnessPlan.fst7_day.routine && wellnessPlan.fst7_day.routine.map((exercise, index) => (
-                                <p key={index} className="text-gray-300 text-xs sm:text-sm">• {exercise}</p>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Diet Plan */}
-                      <div className="print-section">
-                        <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Ayurvedic Indian Diet Plan ({wellnessPlan.diet_plan.type})</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 print-diet-grid">
-                          {/* Morning Routine */}
-                          {wellnessPlan.diet_plan.morning_routine && (
-                            <div>
-                              <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🌅 Morning Routine</h4>
-                              <ul className="space-y-1 print-yoga-list">
-                                {wellnessPlan.diet_plan.morning_routine.map((item, index) => (
-                                  <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          <div>
-                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🍳 Breakfast</h4>
-                            <ul className="space-y-1 print-yoga-list">
-                              {wellnessPlan.diet_plan.breakfast.map((item, index) => (
-                                <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div>
-                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🍽️ Lunch</h4>
-                            <ul className="space-y-1 print-yoga-list">
-                              {wellnessPlan.diet_plan.lunch.map((item, index) => (
-                                <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div>
-                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🥜 Snacks</h4>
-                            <ul className="space-y-1 print-yoga-list">
-                              {wellnessPlan.diet_plan.snacks.map((item, index) => (
-                                <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div>
-                            <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🌙 Dinner</h4>
-                            <ul className="space-y-1 print-yoga-list">
-                              {wellnessPlan.diet_plan.dinner.map((item, index) => (
-                                <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
-                              ))}
-                            </ul>
-                          </div>
-                          {/* Bedtime Routine */}
-                          {wellnessPlan.diet_plan.bedtime_routine && (
-                            <div>
-                              <h4 className="font-bold mb-2 text-white text-sm sm:text-base">🌙 Bedtime Routine</h4>
-                              <ul className="space-y-1 print-yoga-list">
-                                {wellnessPlan.diet_plan.bedtime_routine.map((item, index) => (
-                                  <li key={index} className="text-gray-300 text-xs sm:text-sm">• {item}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Supplements */}
-                      {wellnessPlan.supplements && wellnessPlan.supplements.length > 0 && (
-                        <div className="print-section">
-                          <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Recommended Supplements</h3>
-                          <ul className="space-y-1 print-recommendations">
-                            {wellnessPlan.supplements.map((supplement, index) => (
-                              <li key={index} className="text-gray-300 text-xs sm:text-sm">• {supplement}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Additional Recommendations */}
-                      {wellnessPlan.additional_recommendations && wellnessPlan.additional_recommendations.length > 0 && (
-                        <div className="print-section">
-                          <h3 className="text-lg sm:text-xl font-bold text-orange-400 mb-3">Additional Recommendations</h3>
-                          <ul className="space-y-1 print-recommendations">
-                            {wellnessPlan.additional_recommendations.map((recommendation, index) => (
-                              <li key={index} className="text-gray-300 text-xs sm:text-sm">• {recommendation}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Action Buttons */}
-                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-4 sm:mt-6 no-print">
-                    <Button onClick={downloadPDF} className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-sm sm:text-base">
-                      <Download className="w-4 h-4 mr-2" />
-                      Download PDF
-                    </Button>
-                    <Button onClick={printPlan} variant="outline" className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10 text-sm sm:text-base">
-                      <Printer className="w-4 h-4 mr-2" />
-                      Print Plan
-                    </Button>
-                  </div>
-
-                  {/* Debug Section - Show raw response when parsing fails */}
-                  {rawResponse && (
-                    <div className="mt-6 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
-                      <h4 className="text-red-400 font-semibold mb-2">Debug: Raw AI Response</h4>
-                      <pre className="text-xs text-red-300 whitespace-pre-wrap overflow-x-auto max-h-40 overflow-y-auto">
-                        {rawResponse}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {!wellnessPlan && !isGenerating && (
-                <Card className="bg-gray-900/80 backdrop-blur-sm border-gray-700 shadow-2xl">
-                  <CardContent className="p-8 sm:p-12 text-center">
-                    <FaBolt className="w-16 h-16 sm:w-20 sm:h-20 text-gray-400 mx-auto mb-4 sm:mb-6" />
-                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">Ready to Get Started?</h3>
-                    <p className="text-gray-300 text-base sm:text-lg max-w-md mx-auto">
-                      Fill out your fitness profile and get your personalized Indian fitness plan in seconds.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </motion.div>
-          </div>
+  const MacroCard = ({ icon: Icon, title, value, color }: { icon: any, title: string, value: string, color: string }) => (
+    <div className={`bg-gradient-to-br ${color} p-4 rounded-xl shadow-lg border border-white/10`}>
+      <div className="flex items-center space-x-3">
+        <Icon className="w-6 h-6 text-white" />
+        <div>
+          <div className="text-white/80 text-sm font-medium">{title}</div>
+          <div className="text-white text-lg font-bold">{value}</div>
         </div>
       </div>
     </div>
-  )
+  );
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -inset-10 opacity-5">
+          <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse"></div>
+          <div className="absolute top-3/4 right-1/4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-2000"></div>
+          <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-4000"></div>
+        </div>
+      </div>
+
+      <div className="relative z-10 py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Hero Section */}
+          <div className="text-center space-y-6 mb-12">
+            <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-600/20 to-blue-600/20 backdrop-blur-sm border border-white/10 rounded-full px-4 py-2">
+              <Zap className="w-4 h-4 text-yellow-400" />
+              <span className="text-white/80 text-sm font-medium">AI-Powered Fitness & Nutrition</span>
+            </div>
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-200 to-blue-200 leading-tight">
+              Your Personal
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">AI Trainer</span>
+            </h1>
+            <p className="text-xl text-white/70 max-w-2xl mx-auto leading-relaxed">
+              Get personalized Indian fitness and diet plans tailored specifically for your goals, lifestyle, and preferences
+            </p>
+            <div className="flex justify-center items-center space-x-8 text-white/60">
+              <div className="flex items-center space-x-2">
+                <Users className="w-5 h-5" />
+                <span className="text-sm">10,000+ Plans Generated</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Star className="w-5 h-5 text-yellow-400" />
+                <span className="text-sm">AI-Powered Insights</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Form */}
+          <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8 lg:p-10">
+            {/* Usage Counter */}
+            <div className="flex justify-between items-center mb-8">
+              <div className="flex items-center space-x-3">
+                <Target className="w-6 h-6 text-purple-400" />
+                <h2 className="text-2xl sm:text-3xl font-bold text-white">Create Your Plan</h2>
+              </div>
+              <div className="flex items-center space-x-2 bg-gradient-to-r from-purple-600/30 to-blue-600/30 backdrop-blur-sm border border-white/10 rounded-full px-4 py-2">
+                <Clock className="w-4 h-4 text-white/70" />
+                <span className="text-white/70 text-sm">
+                  Plans used today: <span className="font-bold text-white">{dailyUsage}/10</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {/* Personal Info */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                  <h3 className="text-lg font-semibold text-white">Personal Information</h3>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="group">
+                    <Label className="text-white/80 text-sm font-medium">Full Name *</Label>
+                    <Input 
+                      value={formData.name} 
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => handleInputChange("name", e.target.value)}
+                      className="mt-2 bg-white/5 border-white/20 text-white placeholder-white/40 focus:border-purple-400 focus:ring-purple-400/50 rounded-xl transition-all duration-200 group-hover:bg-white/10"
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="group">
+                      <Label className="text-white/80 text-sm font-medium">Age *</Label>
+                      <Input 
+                        type="number" 
+                        value={formData.age} 
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleInputChange("age", e.target.value)}
+                        className="mt-2 bg-white/5 border-white/20 text-white placeholder-white/40 focus:border-purple-400 focus:ring-purple-400/50 rounded-xl transition-all duration-200 group-hover:bg-white/10"
+                        placeholder="25"
+                      />
+                    </div>
+                    <div className="group">
+                      <Label className="text-white/80 text-sm font-medium">Gender *</Label>
+                      <Select onValueChange={(value: string) => handleInputChange("gender", value)}>
+                        <SelectTrigger className="mt-2 bg-white/5 border-white/20 text-white focus:border-purple-400 focus:ring-purple-400/50 rounded-xl">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="group">
+                      <Label className="text-white/80 text-sm font-medium">Weight (kg)</Label>
+                      <Input 
+                        type="number" 
+                        value={formData.weight} 
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleInputChange("weight", e.target.value)}
+                        className="mt-2 bg-white/5 border-white/20 text-white placeholder-white/40 focus:border-purple-400 focus:ring-purple-400/50 rounded-xl transition-all duration-200 group-hover:bg-white/10"
+                        placeholder="70"
+                      />
+                    </div>
+                    <div className="group">
+                      <Label className="text-white/80 text-sm font-medium">Height (cm)</Label>
+                      <Input 
+                        type="number" 
+                        value={formData.height} 
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleInputChange("height", e.target.value)}
+                        className="mt-2 bg-white/5 border-white/20 text-white placeholder-white/40 focus:border-purple-400 focus:ring-purple-400/50 rounded-xl transition-all duration-200 group-hover:bg-white/10"
+                        placeholder="170"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Goals & Preferences */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <h3 className="text-lg font-semibold text-white">Goals & Preferences</h3>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="group">
+                    <Label className="text-white/80 text-sm font-medium">Fitness Goal *</Label>
+                    <Select onValueChange={(value: string) => handleInputChange("fitnessGoal", value)}>
+                      <SelectTrigger className="mt-2 bg-white/5 border-white/20 text-white focus:border-purple-400 focus:ring-purple-400/50 rounded-xl">
+                        <SelectValue placeholder="Select your goal" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="muscle">💪 Muscle Building</SelectItem>
+                        <SelectItem value="weight-loss">🔥 Fat Loss</SelectItem>
+                        <SelectItem value="general">⚡ General Fitness</SelectItem>
+                        <SelectItem value="strength">🏋️ Strength Training</SelectItem>
+                        <SelectItem value="endurance">🏃 Endurance</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="group">
+                    <Label className="text-white/80 text-sm font-medium">Diet Preference</Label>
+                    <Select onValueChange={(value: string) => handleInputChange("dietPreference", value)}>
+                      <SelectTrigger className="mt-2 bg-white/5 border-white/20 text-white focus:border-purple-400 focus:ring-purple-400/50 rounded-xl">
+                        <SelectValue placeholder="Select diet type" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="Vegetarian">🥬 Vegetarian</SelectItem>
+                        <SelectItem value="Non-Vegetarian">🍖 Non-Vegetarian</SelectItem>
+                        <SelectItem value="Vegan">🌱 Vegan</SelectItem>
+                        <SelectItem value="Flexible">🍽️ Flexible</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="group">
+                    <Label className="text-white/80 text-sm font-medium">Lifestyle</Label>
+                    <Input 
+                      value={formData.lifestyle} 
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => handleInputChange("lifestyle", e.target.value)}
+                      className="mt-2 bg-white/5 border-white/20 text-white placeholder-white/40 focus:border-purple-400 focus:ring-purple-400/50 rounded-xl transition-all duration-200 group-hover:bg-white/10"
+                      placeholder="e.g., Sedentary, Active, Very Active"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Medical Info */}
+              <div className="space-y-4 lg:col-span-2 xl:col-span-1">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <h3 className="text-lg font-semibold text-white">Medical Information</h3>
+                </div>
+
+                <div className="group">
+                  <Label className="text-white/80 text-sm font-medium">Medical Conditions (Optional)</Label>
+                  <Textarea 
+                    rows={4} 
+                    value={formData.medicalConditions}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleInputChange("medicalConditions", e.target.value)}
+                    className="mt-2 bg-white/5 border-white/20 text-white placeholder-white/40 focus:border-purple-400 focus:ring-purple-400/50 rounded-xl transition-all duration-200 group-hover:bg-white/10"
+                    placeholder="List any medical conditions, injuries, or limitations..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Generate Button */}
+            <div className="flex flex-col items-center space-y-4 mt-8">
+              <Button 
+                className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 min-w-64" 
+                disabled={isGenerating || dailyUsage >= 10} 
+                onClick={generatePlan}
+              >
+                {isGenerating ? (
+                  <div className="flex items-center space-x-3">
+                    <Loader2 className="animate-spin w-5 h-5" />
+                    <span>Creating Your Plan...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-3">
+                    <Zap className="w-5 h-5" />
+                    <span>Generate My Personal Plan</span>
+                  </div>
+                )}
+              </Button>
+              
+              {error && (
+                <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 text-red-200 text-center max-w-md">
+                  <div className="flex items-center justify-center space-x-2">
+                    <Shield className="w-5 h-5" />
+                    <span>{error}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* AI Response */}
+          {aiPlan && showPlan && (
+            <div id="results" className="space-y-8 animate-in fade-in duration-1000">
+              {/* Success Banner */}
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-sm border border-green-500/30 rounded-2xl p-6 text-center">
+                <div className="flex items-center justify-center space-x-3 mb-2">
+                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                  <h2 className="text-2xl font-bold text-white">Your Personalized Plan is Ready!</h2>
+                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-green-200/80">AI has analyzed your profile and created a custom plan just for you</p>
+              </div>
+
+              {/* Analysis & Reasoning */}
+              <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="p-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-xl">
+                    <Heart className="w-6 h-6 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">AI Analysis & Insights</h3>
+                    <p className="text-white/60 text-sm">Personalized recommendations based on your profile</p>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl p-6">
+                  <p className="text-white/90 leading-relaxed">{aiPlan.analysis_reasoning}</p>
+                  <div className="mt-4 flex items-center space-x-2 text-amber-200">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-sm font-medium">Plan Duration: {aiPlan.plan_duration}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Workout Plan */}
+              {aiPlan.workout_days && aiPlan.workout_days.length > 0 && (
+                <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <div className="p-3 bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-xl">
+                      <Dumbbell className="w-6 h-6 text-orange-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Your Workout Plan</h3>
+                      <p className="text-white/60 text-sm">Customized exercises for your goals</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-6">
+                    {aiPlan.workout_days.map((workout: WorkoutDay, idx: number) => (
+                      <div key={idx} className="bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-2xl p-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                          <div>
+                            <h4 className="text-lg font-bold text-orange-300">{workout.name}</h4>
+                            {workout.day && <span className="text-orange-200/70 text-sm">{workout.day}</span>}
+                          </div>
+                          <div className="mt-2 sm:mt-0">
+                            <span className="inline-flex items-center bg-orange-500/20 text-orange-200 text-xs font-medium px-3 py-1 rounded-full">
+                              Focus: {workout.focus}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <p className="text-white/70 text-sm mb-4 italic">{workout.reasoning}</p>
+                        
+                        <div className="space-y-4">
+                          {workout.exercises.map((exercise: Exercise, i: number) => (
+                            <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-3">
+                                <h5 className="font-semibold text-green-300 text-lg">{exercise.name}</h5>
+                                <div className="flex flex-col sm:flex-row sm:space-x-4 mt-2 sm:mt-0 text-sm">
+                                  <span className="text-white/80 bg-white/10 px-2 py-1 rounded">{exercise.prescription}</span>
+                                  <span className="text-white/80 bg-white/10 px-2 py-1 rounded mt-1 sm:mt-0">Rest: {exercise.rest}</span>
+                                </div>
+                              </div>
+                              
+                              <p className="text-white/70 text-sm mb-3">{exercise.reasoning}</p>
+                              
+                              {exercise.alternatives && exercise.alternatives.length > 0 && (
+                                <div className="mb-3">
+                                  <span className="text-yellow-300 text-sm font-medium">Alternatives: </span>
+                                  <span className="text-yellow-200/80 text-sm">{exercise.alternatives.join(', ')}</span>
+                                </div>
+                              )}
+                              
+                              {exercise.notes && (
+                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                                  <span className="text-blue-300 text-sm font-medium">💡 Pro Tip: </span>
+                                  <span className="text-blue-200/80 text-sm">{exercise.notes}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Cardio Plan */}
+              {aiPlan.cardio_plan && (
+                <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <div className="p-3 bg-gradient-to-r from-teal-500/20 to-cyan-500/20 rounded-xl">
+                      <Heart className="w-6 h-6 text-teal-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Cardio & Conditioning</h3>
+                      <p className="text-white/60 text-sm">Heart-healthy cardio recommendations</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-teal-500/10 to-cyan-500/10 border border-teal-500/20 rounded-2xl p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                      <div>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-teal-300 font-semibold">Type:</span>
+                            <span className="text-white">{aiPlan.cardio_plan.type}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-teal-300 font-semibold">Frequency:</span>
+                            <span className="text-white">{aiPlan.cardio_plan.frequency}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-teal-300 font-semibold mb-2">Alternatives:</div>
+                        <div className="flex flex-wrap gap-2">
+                          {aiPlan.cardio_plan.alternatives.map((alt, i) => (
+                            <span key={i} className="bg-teal-500/20 text-teal-200 text-xs px-2 py-1 rounded-full">
+                              {alt}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <p className="text-white/70 text-sm mb-4 italic">{aiPlan.cardio_plan.reasoning}</p>
+                    
+                    {aiPlan.cardio_plan.sessions && aiPlan.cardio_plan.sessions.length > 0 && (
+                      <div>
+                        <div className="text-teal-300 font-semibold mb-3">Session Details:</div>
+                        <div className="space-y-2">
+                          {aiPlan.cardio_plan.sessions.map((session, i) => (
+                            <div key={i} className="bg-white/5 border border-white/10 rounded-lg p-3">
+                              <span className="text-white/90 text-sm">{session}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Nutrition Plan */}
+              {aiPlan.nutrition_plan && (
+                <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <div className="p-3 bg-gradient-to-r from-lime-500/20 to-green-500/20 rounded-xl">
+                      <Apple className="w-6 h-6 text-lime-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Nutrition Plan</h3>
+                      <p className="text-white/60 text-sm">Personalized Indian diet recommendations</p>
+                    </div>
+                  </div>
+                  
+                  {/* Macros & Micros */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <MacroCard 
+                      icon={Zap} 
+                      title="Calories" 
+                      value={aiPlan.nutrition_plan.total_macros.calories} 
+                      color="from-red-500/20 to-orange-500/20" 
+                    />
+                    <MacroCard 
+                      icon={Dumbbell} 
+                      title="Protein" 
+                      value={aiPlan.nutrition_plan.total_macros.protein} 
+                      color="from-blue-500/20 to-cyan-500/20" 
+                    />
+                    <MacroCard 
+                      icon={Apple} 
+                      title="Carbs" 
+                      value={aiPlan.nutrition_plan.total_macros.carbs} 
+                      color="from-green-500/20 to-emerald-500/20" 
+                    />
+                    <MacroCard 
+                      icon={Heart} 
+                      title="Fats" 
+                      value={aiPlan.nutrition_plan.total_macros.fats} 
+                      color="from-purple-500/20 to-pink-500/20" 
+                    />
+                  </div>
+
+                  {/* Meals */}
+                  <div className="space-y-6">
+                    <h4 className="text-lg font-semibold text-lime-300 mb-4">Daily Meal Plan</h4>
+                    {Object.entries(aiPlan.nutrition_plan.meals).map(([mealTime, meal]: [string, Meal]) => (
+                      <div key={mealTime} className="bg-gradient-to-r from-lime-500/10 to-green-500/10 border border-lime-500/20 rounded-2xl p-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                          <div>
+                            <h5 className="text-xl font-bold text-lime-300 capitalize">{mealTime}</h5>
+                            <div className="text-lg text-yellow-300 font-medium">{meal.hindi_name}</div>
+                            <div className="text-white/80">{meal.english_name}</div>
+                          </div>
+                          <div className="mt-2 sm:mt-0">
+                            <span className="inline-flex items-center bg-lime-500/20 text-lime-200 text-xs font-medium px-3 py-1 rounded-full">
+                              Indian Traditional
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div>
+                            <div className="text-white/80 font-medium mb-2">🥘 Ingredients:</div>
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              {meal.ingredients.map((ingredient, i) => (
+                                <span key={i} className="bg-white/10 text-white/90 text-xs px-2 py-1 rounded-full">
+                                  {ingredient}
+                                </span>
+                              ))}
+                            </div>
+                            
+                            <div className="text-white/80 font-medium mb-2">👩‍🍳 Preparation:</div>
+                            <p className="text-white/70 text-sm mb-4">{meal.preparation}</p>
+                          </div>
+                          
+                          <div>
+                            <div className="text-white/80 font-medium mb-2">💡 Why This Meal:</div>
+                            <p className="text-white/70 text-sm mb-4">{meal.reasoning}</p>
+                            
+                            {meal.alternatives && meal.alternatives.length > 0 && (
+                              <div>
+                                <div className="text-yellow-300 font-medium mb-2">🔄 Alternatives:</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {meal.alternatives.map((alt, i) => (
+                                    <span key={i} className="bg-yellow-500/20 text-yellow-200 text-xs px-2 py-1 rounded-full">
+                                      {alt}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Ayurvedic Notes & Budget Tips */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                    {aiPlan.nutrition_plan.ayurvedic_notes && aiPlan.nutrition_plan.ayurvedic_notes.length > 0 && (
+                      <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl p-6">
+                        <div className="flex items-center space-x-2 mb-4">
+                          <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                          <h5 className="text-lg font-semibold text-purple-300">🕉️ Ayurvedic Wisdom</h5>
+                        </div>
+                        <div className="space-y-2">
+                          {aiPlan.nutrition_plan.ayurvedic_notes.map((note, i) => (
+                            <div key={i} className="flex items-start space-x-2">
+                              <div className="w-1.5 h-1.5 bg-purple-400 rounded-full mt-2 flex-shrink-0"></div>
+                              <span className="text-purple-200/90 text-sm">{note}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {aiPlan.nutrition_plan.budget_tips && aiPlan.nutrition_plan.budget_tips.length > 0 && (
+                      <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-2xl p-6">
+                        <div className="flex items-center space-x-2 mb-4">
+                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                          <h5 className="text-lg font-semibold text-green-300">💰 Budget Tips</h5>
+                        </div>
+                        <div className="space-y-2">
+                          {aiPlan.nutrition_plan.budget_tips.map((tip, i) => (
+                            <div key={i} className="flex items-start space-x-2">
+                              <div className="w-1.5 h-1.5 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                              <span className="text-green-200/90 text-sm">{tip}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Supplements */}
+              {aiPlan.supplements && aiPlan.supplements.length > 0 && (
+                <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <div className="p-3 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 rounded-xl">
+                      <Shield className="w-6 h-6 text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Supplements</h3>
+                      <p className="text-white/60 text-sm">Additional nutritional support</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-4">
+                    {aiPlan.supplements.map((supplement: Supplement, i: number) => (
+                      <div key={i} className="bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/20 rounded-2xl p-6">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4">
+                          <div>
+                            <h5 className="text-lg font-bold text-purple-300">{supplement.name}</h5>
+                            <div className="flex flex-col sm:flex-row sm:space-x-4 mt-2 text-sm">
+                              <span className="text-white/80">💊 {supplement.dosage}</span>
+                              <span className="text-white/80">⏰ {supplement.timing}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <p className="text-white/70 text-sm mb-4">{supplement.reasoning}</p>
+                        
+                        {supplement.alternatives && supplement.alternatives.length > 0 && (
+                          <div>
+                            <span className="text-yellow-300 text-sm font-medium">Natural Alternatives: </span>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {supplement.alternatives.map((alt, j) => (
+                                <span key={j} className="bg-yellow-500/20 text-yellow-200 text-xs px-2 py-1 rounded-full">
+                                  {alt}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Lifestyle Recommendations */}
+              {aiPlan.lifestyle_recommendations && aiPlan.lifestyle_recommendations.length > 0 && (
+                <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <div className="p-3 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-xl">
+                      <Heart className="w-6 h-6 text-cyan-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Lifestyle Recommendations</h3>
+                      <p className="text-white/60 text-sm">Holistic wellness advice</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-6">
+                    {aiPlan.lifestyle_recommendations.map((rec: LifestyleRecommendation, i: number) => (
+                      <div key={i} className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-2xl p-6">
+                        <div className="flex items-center space-x-2 mb-4">
+                          <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
+                          <h5 className="text-lg font-bold text-cyan-300 capitalize">{rec.category}</h5>
+                        </div>
+                        
+                        <div className="grid gap-3 mb-4">
+                          {rec.recommendations.map((recommendation, j) => (
+                            <div key={j} className="bg-white/5 border border-white/10 rounded-lg p-3">
+                              <span className="text-white/90 text-sm">{recommendation}</span>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3">
+                          <span className="text-cyan-300 text-sm font-medium">💡 Why Important: </span>
+                          <span className="text-cyan-200/80 text-sm">{rec.reasoning}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Progression & Precautions */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Progression */}
+                {aiPlan.progression && (
+                  <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="p-3 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 rounded-xl">
+                        <Target className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white">Progression Plan</h3>
+                        <p className="text-white/60 text-sm">How to advance your fitness</p>
+                      </div>
+                    </div>
+                    <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-2xl p-6">
+                      <p className="text-white/90 leading-relaxed">{aiPlan.progression}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Precautions */}
+                {aiPlan.precautions && aiPlan.precautions.length > 0 && (
+                  <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="p-3 bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-xl">
+                        <Shield className="w-6 h-6 text-red-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white">Safety Precautions</h3>
+                        <p className="text-white/60 text-sm">Important safety guidelines</p>
+                      </div>
+                    </div>
+                    <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-2xl p-6">
+                      <div className="space-y-3">
+                        {aiPlan.precautions.map((precaution, i) => (
+                          <div key={i} className="flex items-start space-x-3">
+                            <div className="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
+                            <span className="text-red-200/90 text-sm leading-relaxed">{precaution}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Alternatives Summary */}
+              {aiPlan.alternatives_summary && (
+                <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <div className="p-3 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 rounded-xl">
+                      <Star className="w-6 h-6 text-yellow-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Alternative Options</h3>
+                      <p className="text-white/60 text-sm">Flexible alternatives for your plan</p>
+                    </div>
+                  </div>
+                  <div className="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border border-yellow-500/20 rounded-2xl p-6">
+                    <p className="text-white/90 leading-relaxed">{aiPlan.alternatives_summary}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer CTA */}
+              <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 backdrop-blur-sm border border-white/10 rounded-3xl p-8 text-center">
+                <div className="space-y-4">
+                  <h3 className="text-2xl font-bold text-white">Ready to Transform Your Life?</h3>
+                  <p className="text-white/70 max-w-2xl mx-auto">
+                    Your personalized plan is ready! Remember to consult with healthcare professionals before starting any new fitness or nutrition program.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                    <Button 
+                      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                      className="bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl px-6 py-3"
+                    >
+                      Create Another Plan
+                    </Button>
+
+
+                    {/* <Button 
+                      onClick={() => {
+                        import('jspdf').then(jsPDF => {
+                          const doc = new jsPDF.jsPDF();
+                          doc.text("AI Plan", 10, 10);
+                          doc.text(JSON.stringify(aiPlan, null, 2), 10, 20);
+                          doc.save('ai-plan.pdf');
+                        }).catch(error => {
+                          console.error("Failed to load jsPDF library", error);
+                        });
+                      }}
+                      className="bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl px-6 py-3"
+                    >
+                      Download PDF
+                    </Button>
+ */}
+
+
+
+
+
+
+                    <div className="flex items-center space-x-2 text-white/60 text-sm">
+                      <Shield className="w-4 h-4" />
+                      <span>Plans remaining today: {10 - dailyUsage}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

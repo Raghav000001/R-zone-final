@@ -1,61 +1,43 @@
-export interface WellnessFormData {
-  name: string;
-  age: number;
-  gender: string;
-  height?: number;
-  weight?: number;
-  fitnessGoal: string;
-  lifestyle?: string;
-  medicalConditions?: string;
-  dietPreference?: string;
-}
+import mongoose, { Schema, model, models } from "mongoose";
 
-export interface Exercise {
-  name: string;
-  sets: string;
-  rest: string;
-}
+const ExerciseSchema = new Schema({
+  name: String,
+  prescription: String,
+  rest: String,
+  notes: String
+}, { _id: false });
 
-export interface WorkoutDay {
-  exercises: Exercise[];
-}
+const WorkoutDaySchema = new Schema({
+  name: String,
+  day: String,
+  exercises: [ExerciseSchema]
+}, { _id: false });
 
-export interface CardioHIIT {
-  routine: string[];
-  weekly_frequency: string;
-}
+const CardioPlanSchema = new Schema({
+  type: String,
+  frequency: String,
+  sessions: [String],
+  reasoning: String
+}, { _id: false });
 
-export interface FST7Day {
-  target_muscle: string;
-  routine: string[];
-}
+const NutritionPlanSchema = new Schema({
+  diet_type: String,
+  meals: Schema.Types.Mixed, // Flexible object so keys can vary
+  special_notes: [String]
+}, { _id: false });
 
-export interface DietPlan {
-  type: string;
-  morning_routine?: string[];
-  breakfast: string[];
-  lunch: string[];
-  snacks: string[];
-  dinner: string[];
-  bedtime_routine?: string[];
-}
+const WellnessPlanSchema = new Schema({
+  user_id: { type: String, required: true },
+  input: Schema.Types.Mixed,
+  analysis_reasoning: String,
+  workout_days: [WorkoutDaySchema],
+  cardio_plan: CardioPlanSchema,
+  nutrition_plan: NutritionPlanSchema,
+  supplements: [String],
+  lifestyle_recommendations: [String],
+  progression: String,
+  precautions: [String],
+  createdAt: { type: Date, default: () => new Date() }
+});
 
-export interface WellnessPlan {
-  push_day: WorkoutDay;
-  pull_day: WorkoutDay;
-  legs_day: WorkoutDay;
-  cardio_HIIT: CardioHIIT;
-  fst7_day: FST7Day;
-  diet_plan: DietPlan;
-  supplements: string[];
-  additional_recommendations: string[];
-}
-
-export interface GeneratePlanResponse {
-  plan: WellnessPlan;
-  rawContent?: string;
-}
-
-export interface GeneratePlanError {
-  error: string;
-} 
+export default models.WellnessPlan || model("WellnessPlan", WellnessPlanSchema);
