@@ -7,7 +7,7 @@
       "maxDuration": 30
     },
     "app/api/generate-plan/route.ts": {
-      "maxDuration": 120
+      "maxDuration": 300
     }
   },
   "env": {
