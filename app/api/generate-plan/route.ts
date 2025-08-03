@@ -435,7 +435,7 @@ Return only the JSON object, no thinking, no explanations.`;
 
   // 5. Perplexity API Call with better error handling
   const payload = {
-    model: "sonar-reasoning-pro",
+    model: "sonar-pro",
     messages: [
       {role:"system", content:systemPrompt},
       {role:"user", content:userPrompt}
