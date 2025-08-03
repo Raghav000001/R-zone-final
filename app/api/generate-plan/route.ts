@@ -433,14 +433,14 @@ Age: ${age} years, Activity Level: ${formData.lifestyle || 'Not specified'}, Exe
 
 Return only the JSON object, no thinking, no explanations.`;
 
-  // 5. Perplexity API Call with better error handling
+  // 5. Perplexity API Call with optimized settings for faster response
   const payload = {
-    model: "sonar-pro",
+    model: "sonar-medium-online", // Faster model
     messages: [
       {role:"system", content:systemPrompt},
       {role:"user", content:userPrompt}
     ],
-    max_tokens: 5000, // Increased to ensure complete response
+    max_tokens: 3000, // Reduced for faster response
     temperature: 0.1, // Very low temperature for consistent formatting
     top_p: 0.9,      
     stream: false
@@ -449,14 +449,21 @@ Return only the JSON object, no thinking, no explanations.`;
   try {
     console.log("Making API request to Perplexity...");
     
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+    
     const resp = await fetch("https://api.perplexity.ai/chat/completions",{
       method:'POST',
       headers:{
         "Authorization":`Bearer ${process.env.PPX_API}`,
         "Content-Type":"application/json"
       },
-      body:JSON.stringify(payload)
+      body:JSON.stringify(payload),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
     if(!resp.ok){
       const errTxt = await resp.text();
@@ -545,7 +552,22 @@ Return only the JSON object, no thinking, no explanations.`;
   } catch(err) {
     console.error("API Fetch error:", err);
     
-    // Use fallback plan for any fetch errors
+    // Check if it's a timeout error
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.log("Request timed out, using fallback plan");
+      const fallbackPlan = generateFallbackPlan(formData);
+      return NextResponse.json({
+        plan: fallbackPlan,
+        source: "fallback", 
+        message: "AI service took too long to respond. Using reliable fallback plan.",
+        debug: {
+          error: "Request timeout (25 seconds)",
+          type: "timeout"
+        }
+      });
+    }
+    
+    // Use fallback plan for any other fetch errors
     console.log("Fetch failed, using fallback plan");
     const fallbackPlan = generateFallbackPlan(formData);
     return NextResponse.json({

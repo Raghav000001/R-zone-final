@@ -182,6 +182,10 @@ export default function AIPlanner() {
     setPlanSource(null);
 
     try {
+      // Create AbortController for client-side timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const resp = await fetch("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -191,7 +195,10 @@ export default function AIPlanner() {
           weight: formData.weight ? Number(formData.weight) : undefined,
           height: formData.height ? Number(formData.height) : undefined,
         }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (!resp.ok) {
         let errorData;
@@ -228,7 +235,13 @@ export default function AIPlanner() {
       }
     } catch (err: any) {
       console.error("Plan generation error:", err);
-      setError(err.message || "An unexpected error occurred. Please try again.");
+      
+      // Handle timeout specifically
+      if (err.name === 'AbortError') {
+        setError("Request timed out. The AI service is taking too long to respond. Please try again.");
+      } else {
+        setError(err.message || "An unexpected error occurred. Please try again.");
+      }
     } finally {
       setIsGenerating(false);
     }
