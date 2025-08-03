@@ -451,7 +451,7 @@ Return only the JSON object, no thinking, no explanations.`;
     
     // Create AbortController for timeout - increased for production
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout for production
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout for production
     
     const resp = await fetch("https://api.perplexity.ai/chat/completions",{
       method:'POST',
@@ -543,7 +543,7 @@ Return only the JSON object, no thinking, no explanations.`;
     
     // Check if it's a timeout error
     if (err instanceof Error && err.name === 'AbortError') {
-      console.log("Request timed out after 45 seconds");
+      console.log("Request timed out after 2 minutes");
       return NextResponse.json({
         error: "AI service is taking longer than expected. Please try again in a moment.",
         type: "timeout"

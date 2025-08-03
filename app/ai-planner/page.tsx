@@ -184,7 +184,7 @@ export default function AIPlanner() {
     try {
       // Create AbortController for client-side timeout - increased for production
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 50000); // 50 second timeout for production
+      const timeoutId = setTimeout(() => controller.abort(), 130000); // 2 minutes 10 seconds timeout for production
       
       const resp = await fetch("/api/generate-plan", {
         method: "POST",
@@ -689,7 +689,7 @@ export default function AIPlanner() {
                 {isGenerating ? (
                   <div className="flex items-center space-x-3">
                     <Loader2 className="animate-spin w-5 h-5" />
-                    <span>Creating Your Plan...</span>
+                    <span>AI is creating your personalized plan (this may take up to 2 minutes)...</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-3">
