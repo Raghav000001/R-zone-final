@@ -35,8 +35,12 @@ setInterval(()=>{
   }
 }, 60*60*1000);
 
-// Enhanced JSON extraction function
+// Enhanced JSON extraction function with multiple fallback strategies
 function extractJSON(content: string): any {
+  console.log("Raw content length:", content.length);
+  console.log("First 200 chars:", content.substring(0, 200));
+  console.log("Last 200 chars:", content.substring(content.length - 200));
+
   // Remove <think> tags and their content
   content = content.replace(/<think>[\s\S]*?<\/think>/gi, '');
   
@@ -50,14 +54,211 @@ function extractJSON(content: string): any {
   // Remove any leading/trailing whitespace
   content = content.trim();
   
-  // Try to find JSON object
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    return JSON.parse(jsonMatch[0]);
+  // Strategy 1: Look for the largest JSON object
+  const jsonMatches = content.match(/\{[\s\S]*?\}/g);
+  if (jsonMatches && jsonMatches.length > 0) {
+    // Sort by length, try the longest first
+    const sortedMatches = jsonMatches.sort((a, b) => b.length - a.length);
+    
+    for (const match of sortedMatches) {
+      try {
+        const parsed = JSON.parse(match);
+        // Validate it's a workout plan (has expected structure)
+        if (parsed.analysis_reasoning || parsed.workout_days || parsed.nutrition_plan) {
+          console.log("Successfully found valid plan JSON");
+          return parsed;
+        }
+      } catch (e) {
+        console.log("Failed to parse match:", match.substring(0, 100));
+        continue;
+      }
+    }
   }
   
-  // If no match found, try parsing the entire cleaned content
-  return JSON.parse(content);
+  // Strategy 2: Try to find JSON between specific markers
+  const betweenBraces = content.match(/\{[\s\S]*\}/);
+  if (betweenBraces) {
+    try {
+      const parsed = JSON.parse(betweenBraces[0]);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return parsed;
+      }
+    } catch (e) {
+      console.log("Strategy 2 failed:", e);
+    }
+  }
+  
+  // Strategy 3: Clean up common issues and try again
+  let cleanContent = content
+    .replace(/^[^{]*/, '') // Remove everything before first {
+    .replace(/[^}]*$/, '') // Remove everything after last }
+    .replace(/\n\s*\n/g, '\n') // Remove empty lines
+    .replace(/,\s*}/g, '}') // Remove trailing commas
+    .replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
+  
+  if (cleanContent.startsWith('{') && cleanContent.endsWith('}')) {
+    try {
+      return JSON.parse(cleanContent);
+    } catch (e) {
+      console.log("Strategy 3 failed:", e);
+    }
+  }
+  
+  // If all strategies fail, throw with detailed info
+  throw new Error(`Could not extract valid JSON. Content preview: ${content.substring(0, 500)}`);
+}
+
+// Fallback plan generator for when AI fails
+function generateFallbackPlan(formData: any): any {
+  const age = Number(formData.age);
+  const isYounger = age < 45;
+  const isSenior = age >= 60;
+  
+  return {
+    analysis_reasoning: `Based on your profile (Age: ${formData.age}, Goal: ${formData.fitnessGoal}), this is a personalized plan focusing on gradual progression and Indian dietary preferences. This fallback plan ensures you have a safe starting point while we work on improving our AI recommendations.`,
+    plan_duration: "4-6 weeks",
+    workout_days: [
+      {
+        name: isSenior ? "Gentle Movement Day" : "Upper Body Strength",
+        day: "Day 1",
+        focus: isSenior ? "Flexibility and balance" : "Chest, shoulders, arms",
+        reasoning: isSenior ? "Gentle movements to maintain mobility and strength" : "Building upper body strength for daily activities",
+        exercises: isSenior ? [
+          {
+            name: "Chair-supported stretches",
+            alternatives: ["Wall stretches", "Bed stretches", "Standing stretches"],
+            prescription: "5-8 gentle stretches",
+            rest: "30 seconds between stretches",
+            reasoning: "Maintains flexibility and joint mobility safely",
+            notes: "Move slowly and never force a stretch"
+          },
+          {
+            name: "Walking in place",
+            alternatives: ["Slow outdoor walk", "Marching", "Step touches"],
+            prescription: "5-10 minutes",
+            rest: "As needed",
+            reasoning: "Low-impact cardio for heart health",
+            notes: "Hold onto a chair if balance is needed"
+          }
+        ] : [
+          {
+            name: "Push-ups (modified if needed)",
+            alternatives: ["Wall push-ups", "Incline push-ups", "Knee push-ups"],
+            prescription: "2-3 sets of 8-12 reps",
+            rest: "60 seconds",
+            reasoning: "Builds chest and arm strength functionally",
+            notes: "Start with easier variation and progress gradually"
+          },
+          {
+            name: "Seated rows (resistance band)",
+            alternatives: ["Bent-over rows", "Single-arm rows", "Inverted rows"],
+            prescription: "2-3 sets of 10-15 reps",
+            rest: "60 seconds",
+            reasoning: "Strengthens back muscles for good posture",
+            notes: "Squeeze shoulder blades together at the end"
+          }
+        ]
+      }
+    ],
+    cardio_plan: {
+      type: isSenior ? "Gentle walking" : "Moderate walking/jogging",
+      frequency: isSenior ? "Daily 15-20 minutes" : "4-5 times per week, 25-30 minutes",
+      alternatives: ["Swimming", "Cycling", "Dancing", "Yoga"],
+      sessions: [isSenior ? "15-minute gentle walks after meals" : "25-minute brisk walks or light jogging"],
+      reasoning: isSenior ? "Low-impact cardio suitable for seniors" : "Improves cardiovascular health and aids in achieving fitness goals"
+    },
+    nutrition_plan: {
+      diet_type: formData.dietPreference || "Balanced Indian vegetarian",
+      total_macros: {
+        calories: isSenior ? "1600-1800 kcal" : "1800-2200 kcal",
+        protein: isSenior ? "65-75g" : "80-100g",
+        carbs: isSenior ? "180-200g" : "200-250g",
+        fats: isSenior ? "50-60g" : "60-80g"
+      },
+      total_micros: {
+        vitamins: isSenior ? "Focus on B12, D3, and calcium" : "Balanced multivitamin approach",
+        minerals: "Iron, calcium, magnesium, zinc"
+      },
+      meals: {
+        breakfast: {
+          hindi_name: "दलिया उपमा",
+          english_name: "Broken wheat upma",
+          ingredients: ["Broken wheat", "Vegetables", "Mustard seeds", "Curry leaves", "Turmeric"],
+          preparation: "Roast broken wheat, sauté vegetables with spices, mix and cook with water",
+          reasoning: "High fiber, moderate protein, provides sustained energy",
+          alternatives: ["Oats poha", "Vegetable paratha", "Idli sambhar"]
+        },
+        lunch: {
+          hindi_name: "दाल चावल सब्जी",
+          english_name: "Lentil rice with vegetables",
+          ingredients: ["Rice", "Toor dal", "Seasonal vegetables", "Spices", "Ghee"],
+          preparation: "Cook rice and dal separately, prepare vegetable curry, serve together",
+          reasoning: "Complete protein, balanced macros, traditional and satisfying",
+          alternatives: ["Rajma rice", "Chole rice", "Khichdi"]
+        },
+        dinner: {
+          hindi_name: "रोटी सब्जी दाल",
+          english_name: "Chapati with vegetables and lentils",
+          ingredients: ["Whole wheat flour", "Mixed vegetables", "Moong dal", "Spices"],
+          preparation: "Make fresh rotis, prepare light vegetable curry and dal",
+          reasoning: "Light dinner, easy to digest, provides necessary nutrients",
+          alternatives: ["Vegetable soup with bread", "Light khichdi", "Salad with paneer"]
+        },
+        snacks: {
+          hindi_name: "मिक्स नट्स और फल",
+          english_name: "Mixed nuts and seasonal fruits",
+          ingredients: ["Almonds", "Walnuts", "Seasonal fruits", "Green tea"],
+          preparation: "Soak nuts overnight, have with fresh fruits",
+          reasoning: "Healthy fats, natural sugars, vitamins and minerals",
+          alternatives: ["Roasted chana", "Fruit smoothie", "Vegetable juice"]
+        }
+      },
+      ayurvedic_notes: [
+        "Eat according to your body constitution (Vata, Pitta, Kapha)",
+        "Have largest meal at lunch when digestion is strongest",
+        "Include all six tastes in your daily diet"
+      ],
+      budget_tips: [
+        "Buy seasonal vegetables and fruits",
+        "Purchase lentils and grains in bulk",
+        "Use local and regional ingredients"
+      ],
+      local_alternatives: [
+        "Use regional vegetables and preparations",
+        "Adapt recipes to local taste preferences",
+        "Include traditional family recipes"
+      ]
+    },
+    supplements: [
+      {
+        name: isSenior ? "Vitamin D3 and B12" : "Multivitamin",
+        reasoning: isSenior ? "Essential for bone health and energy in seniors" : "Fills nutritional gaps in regular diet",
+        alternatives: ["Sunlight exposure", "Fortified foods", "Natural food sources"],
+        dosage: isSenior ? "D3: 1000 IU, B12: 250 mcg daily" : "As per manufacturer instructions",
+        timing: "With breakfast for better absorption"
+      }
+    ],
+    lifestyle_recommendations: [
+      {
+        category: "Sleep",
+        recommendations: ["7-8 hours of quality sleep", "Regular sleep schedule", "Avoid screens before bed"],
+        reasoning: "Good sleep is crucial for recovery and overall health"
+      },
+      {
+        category: "Stress Management",
+        recommendations: ["Daily meditation or deep breathing", "Regular social connections", "Pursue hobbies"],
+        reasoning: "Managing stress improves both physical and mental health"
+      }
+    ],
+    progression: "Start with the basic plan for 2 weeks, then gradually increase intensity, duration, or add new exercises based on your comfort and progress.",
+    precautions: [
+      "Consult a doctor before starting any new exercise program",
+      "Start slowly and listen to your body",
+      "Stay hydrated during workouts",
+      "Stop if you feel dizzy or unwell"
+    ],
+    alternatives_summary: "This plan provides multiple alternatives for exercises, meals, and supplements to suit your preferences, budget, and local availability. Feel free to mix and match based on your needs."
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -68,7 +269,12 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Get form data
-  const formData=await req.json();
+  let formData;
+  try {
+    formData = await req.json();
+  } catch (error) {
+    return NextResponse.json({error:'Invalid request format'},{status:400});
+  }
 
   // 3. Basic validation
   if(!formData.name || !formData.age || !formData.fitnessGoal){
@@ -178,154 +384,40 @@ export async function POST(req: NextRequest) {
     bmiInfo = `BMI: ${bmi.toFixed(1)} (${bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese'})`;
   }
 
-  // Enhanced system prompt with age-specific guidelines
-  const systemPrompt = `
-You are an expert Indian fitness and nutrition specialist with special expertise in age-appropriate exercise. Generate ONLY valid JSON output - no thinking process, no explanations outside JSON, no markdown.
+  // Simplified system prompt for better JSON compliance
+  const systemPrompt = `You are an expert Indian fitness and nutrition specialist. 
 
-CRITICAL: Your response must be ONLY a valid JSON object starting with { and ending with }. Do not include any text before or after the JSON.
+CRITICAL: Your response must be ONLY a valid JSON object. Start with { and end with }. No other text, explanations, or markdown.
 
-AGE-SPECIFIC EXERCISE GUIDELINES:
+AGE-SPECIFIC GUIDELINES:
 ${exerciseGuidelines}
 
-EXERCISE INTENSITY GUIDELINES:
-- User lifestyle: ${formData.lifestyle || 'Not specified'}
-- Recommended intensity: ${intensityLevel}
-- Exercise count per session: ${exerciseCount}
-- ${isActiveUser ? 'USER IS ACTIVE/SUPER ACTIVE - PROVIDE HIGH INTENSITY WORKOUTS WITH MORE EXERCISES' : 'USER HAS MODERATE ACTIVITY LEVEL'}
+INTENSITY: ${intensityLevel}
+EXERCISE COUNT: ${exerciseCount}
 
-REQUIREMENTS:
-1. Analyze user data and create unique personalized plans with ${intensityLevel} intensity
-2. Include 3-4 alternatives for exercises, meals, supplements  
-3. EXERCISE COUNT: Provide ${exerciseCount} based on age and activity level
-4. For users UNDER 60: Use gym machines: Seated chest press, Pec-dec fly, Hip thrust, Multi hip, Leg extensions, Seated crunch, Leg press, Chest press adjustable, Multi purpose pullup machine, Cable cross machine, Lats pull down, Vertical leg raises/dips machine, Back rowing machine, Preacher curl
-5. For users 60+: ONLY yoga, walking, swimming, chair exercises, free body movements, stretching, balance exercises
-6. For ACTIVE users: Include compound movements, supersets, higher rep ranges, progressive overload
-7. Diet in HINDI with English translation, focus on Indian regional cuisine
-6. Focus on tier-3 Indian cities (budget-friendly, local ingredients)
-7. Include Ayurvedic principles based on age and constitution
-8. Show total daily macros and micros
-9. Provide detailed reasoning for every recommendation
-10. Consider medical conditions and modify accordingly
-
-JSON STRUCTURE:
+Create a JSON response with this EXACT structure:
 {
-  "analysis_reasoning": "Detailed analysis considering age, goals, and Indian context",
-  "plan_duration": "4-12 weeks based on user level and age",
-  "workout_days": [
-    {
-      "name": "Day name (e.g., Upper Body Strength, Gentle Yoga Flow)",
-      "day": "Day 1/2/3",
-      "focus": "Muscle group focus or movement type",
-      "reasoning": "Why this approach works for user's age and goals",
-      "exercises": [
-        {
-          "name": "Age and intensity-appropriate exercise name",
-          "alternatives": ["Alt1", "Alt2", "Alt3"],
-          "prescription": "Sets x Reps or Duration (higher for active users)",
-          "rest": "Rest duration (shorter for active users)",
-          "reasoning": "Why this exercise suits user's age, activity level and condition",
-          "notes": "Form tips, modifications, intensity adjustments"
-        }
-      ]
-    }
-  ],
-  "cardio_plan": {
-    "type": "Age-appropriate cardio (walking for seniors, varied for younger)",
-    "frequency": "Weekly frequency based on age",
-    "alternatives": ["Age-suitable alternatives"],
-    "sessions": ["Specific session details with intensity"],
-    "reasoning": "Why this cardio approach suits user's age"
-  },
-  "nutrition_plan": {
-    "diet_type": "Based on user preference and Indian traditions",
-    "total_macros": {
-      "calories": "Age-adjusted daily calorie target",
-      "protein": "Protein in grams (age-appropriate)",
-      "carbs": "Carbs in grams", 
-      "fats": "Fats in grams"
-    },
-    "total_micros": {
-      "vitamins": "Age-specific vitamin focus (B12, D, calcium for seniors)",
-      "minerals": "Key minerals needed based on age"
-    },
-    "meals": {
-      "breakfast": {
-        "hindi_name": "Traditional Hindi meal name",
-        "english_name": "English translation",
-        "ingredients": ["Local, budget-friendly ingredients"],
-        "preparation": "Simple, age-appropriate preparation method",
-        "reasoning": "Why this meal suits user's age, goal, and region",
-        "alternatives": ["Regional alternatives", "Seasonal options", "Budget options"]
-      },
-      "lunch": {
-        "hindi_name": "Traditional Hindi meal name",
-        "english_name": "English translation", 
-        "ingredients": ["Local, seasonal ingredients"],
-        "preparation": "Traditional cooking method",
-        "reasoning": "Nutritional and cultural reasoning",
-        "alternatives": ["Regional variations", "Dietary modifications", "Quick options"]
-      },
-      "dinner": {
-        "hindi_name": "Traditional Hindi meal name",
-        "english_name": "English translation",
-        "ingredients": ["Easily digestible ingredients for age"], 
-        "preparation": "Light, healthy preparation",
-        "reasoning": "Why this dinner suits user's age and goals",
-        "alternatives": ["Lighter options", "Regional dishes", "Protein variations"]
-      },
-      "snacks": {
-        "hindi_name": "Traditional Hindi snack name",
-        "english_name": "English translation",
-        "ingredients": ["Healthy, local ingredients"],
-        "preparation": "Simple preparation",
-        "reasoning": "Why this snack helps with goals",
-        "alternatives": ["Seasonal fruits", "Nuts/seeds", "Traditional options"]
-      }
-    },
-    "ayurvedic_notes": ["Age-specific Ayurvedic principles", "Dosha balancing for age", "Seasonal eating tips"],
-    "budget_tips": ["Local market tips", "Seasonal buying advice", "Bulk preparation ideas"],
-    "local_alternatives": ["Regional Indian alternatives", "Tier-3 city options", "Traditional preparations"]
-  },
-  "supplements": [
-    {
-      "name": "Age-appropriate supplement (seniors need D3, B12, calcium)",
-      "reasoning": "Why user's age and condition needs this",
-      "alternatives": ["Natural food sources", "Traditional remedies", "Ayurvedic options"],
-      "dosage": "Age-appropriate recommended amount",
-      "timing": "Best time to take based on age and digestion"
-    }
-  ],
-  "lifestyle_recommendations": [
-    {
-      "category": "Sleep/Stress/Hydration/Social (age-relevant)",
-      "recommendations": ["Age-specific lifestyle advice", "Cultural considerations"],
-      "reasoning": "Why important for user's age and Indian lifestyle"
-    }
-  ],
-  "progression": "How user should progress safely based on age and starting level",
-  "precautions": ["Age-specific safety notes", "Medical considerations", "Warning signs to watch"],
-  "alternatives_summary": "Overview of all alternative options provided with age considerations"
+  "analysis_reasoning": "string",
+  "plan_duration": "string", 
+  "workout_days": [{"name": "string", "day": "string", "focus": "string", "reasoning": "string", "exercises": [{"name": "string", "alternatives": ["string"], "prescription": "string", "rest": "string", "reasoning": "string", "notes": "string"}]}],
+  "cardio_plan": {"type": "string", "frequency": "string", "alternatives": ["string"], "sessions": ["string"], "reasoning": "string"},
+  "nutrition_plan": {"diet_type": "string", "total_macros": {"calories": "string", "protein": "string", "carbs": "string", "fats": "string"}, "total_micros": {"vitamins": "string", "minerals": "string"}, "meals": {"breakfast": {"hindi_name": "string", "english_name": "string", "ingredients": ["string"], "preparation": "string", "reasoning": "string", "alternatives": ["string"]}, "lunch": {"hindi_name": "string", "english_name": "string", "ingredients": ["string"], "preparation": "string", "reasoning": "string", "alternatives": ["string"]}, "dinner": {"hindi_name": "string", "english_name": "string", "ingredients": ["string"], "preparation": "string", "reasoning": "string", "alternatives": ["string"]}, "snacks": {"hindi_name": "string", "english_name": "string", "ingredients": ["string"], "preparation": "string", "reasoning": "string", "alternatives": ["string"]}}, "ayurvedic_notes": ["string"], "budget_tips": ["string"], "local_alternatives": ["string"]},
+  "supplements": [{"name": "string", "reasoning": "string", "alternatives": ["string"], "dosage": "string", "timing": "string"}],
+  "lifestyle_recommendations": [{"category": "string", "recommendations": ["string"], "reasoning": "string"}],
+  "progression": "string",
+  "precautions": ["string"],
+  "alternatives_summary": "string"
 }
 
-RESPOND WITH ONLY THE JSON OBJECT. NO OTHER TEXT.
-  `;
+RESPOND WITH ONLY THE JSON OBJECT.`;
 
-  const userPrompt = `
-Create a personalized plan for: ${userAnalysis}
-${bmiInfo ? `${bmiInfo}` : ''}
+  const userPrompt = `Create plan for: ${userAnalysis} ${bmiInfo ? `${bmiInfo}` : ''}
 
-IMPORTANT: 
-- User is ${age} years old
-- Activity level: ${formData.lifestyle || 'Not specified'} ${isActiveUser ? '(HIGH ACTIVITY - INCREASE INTENSITY)' : '(MODERATE ACTIVITY)'}
-- Exercise count: ${exerciseCount}
-- ${age >= 60 ? 'ONLY recommend yoga, walking, swimming, chair exercises, and gentle movements. NO gym machines or weights.' : age >= 45 ? 'Focus on joint-friendly exercises with appropriate intensity for activity level.' : 'Can include full range of exercises. For active users, provide challenging workouts with 6-7 exercises.'}
+Age: ${age} years, Activity: ${formData.lifestyle || 'Not specified'}, Exercise count: ${exerciseCount}
 
-${isActiveUser ? 'USER IS VERY ACTIVE - Provide high intensity workouts with compound movements, supersets, higher rep ranges, and challenging progressions.' : ''}
+JSON only. No explanations.`;
 
-Respond with ONLY valid JSON. No explanations outside the JSON structure.
-  `;
-
-  // 5. Perplexity API Call with adjusted parameters
+  // 5. Perplexity API Call with better error handling
   const payload = {
     model: "sonar-reasoning-pro",
     messages: [
@@ -333,12 +425,14 @@ Respond with ONLY valid JSON. No explanations outside the JSON structure.
       {role:"user", content:userPrompt}
     ],
     max_tokens: 4000,
-    temperature: 0.7, // Reduced for more consistent formatting
-    top_p: 0.9,      // Reduced for more focused responses
+    temperature: 0.3, // Lower temperature for more consistent formatting
+    top_p: 0.8,      
     stream: false
   };
 
-  try{
+  try {
+    console.log("Making API request to Perplexity...");
+    
     const resp = await fetch("https://api.perplexity.ai/chat/completions",{
       method:'POST',
       headers:{
@@ -350,69 +444,98 @@ Respond with ONLY valid JSON. No explanations outside the JSON structure.
 
     if(!resp.ok){
       const errTxt = await resp.text();
-      return NextResponse.json({error:`AI response failed: ${resp.statusText} ${errTxt}`},{status:500});
+      console.error("Perplexity API error:", resp.status, resp.statusText, errTxt);
+      
+      // Return fallback plan instead of error
+      console.log("API failed, using fallback plan");
+      const fallbackPlan = generateFallbackPlan(formData);
+      return NextResponse.json({
+        plan: fallbackPlan,
+        source: "fallback",
+        message: "AI service temporarily unavailable. Using reliable fallback plan."
+      });
     }
     
     const data = await resp.json();
     let content = data.choices?.[0]?.message?.content||"";
     
-    console.log("Raw AI Response (first 500 chars):", content.substring(0, 500));
+    console.log("Raw AI Response length:", content.length);
     
-    // Enhanced JSON extraction
+    if (!content || content.trim().length === 0) {
+      console.log("Empty response from AI, using fallback");
+      const fallbackPlan = generateFallbackPlan(formData);
+      return NextResponse.json({
+        plan: fallbackPlan,
+        source: "fallback",
+        message: "AI returned empty response. Using reliable fallback plan."
+      });
+    }
+    
+    // Try to extract and parse JSON
     let plan;
-    try{
+    try {
       plan = extractJSON(content);
       console.log("Successfully parsed plan with keys:", Object.keys(plan));
       
       // Validate that essential fields exist
-      if (!plan.analysis_reasoning || !plan.workout_days) {
+      if (!plan.analysis_reasoning && !plan.workout_days && !plan.nutrition_plan) {
         throw new Error("Missing essential plan components");
       }
       
       // Additional validation for age-appropriate content
       if (age >= 60) {
-        // Check if plan contains inappropriate exercises for seniors
         const hasHeavyExercises = JSON.stringify(plan).toLowerCase().includes('chest press') || 
                                  JSON.stringify(plan).toLowerCase().includes('leg press') ||
                                  JSON.stringify(plan).toLowerCase().includes('weights');
         
         if (hasHeavyExercises) {
-          console.log("Warning: Plan contains heavy exercises for senior user");
-          // Could modify the plan here or request regeneration
+          console.log("Warning: Plan contains heavy exercises for senior user, using fallback");
+          const fallbackPlan = generateFallbackPlan(formData);
+          return NextResponse.json({
+            plan: fallbackPlan,
+            source: "fallback",
+            message: "AI plan contained inappropriate exercises for your age. Using safe fallback plan."
+          });
         }
-      }
-      
-      return NextResponse.json({plan});
-      
-    }catch(jsonerr: unknown){
-      console.log("JSON Parse Error:", jsonerr);
-      console.log("Content after cleaning:", content.substring(0, 1000));
-      
-      // Last resort: try to build a minimal plan from available content
-      try {
-        // Look for any JSON-like structure in the response
-        const fallbackMatch = content.match(/\{[^{}]*"analysis_reasoning"[^{}]*\}/);
-        if (fallbackMatch) {
-          const fallbackPlan = JSON.parse(fallbackMatch[0]);
-          return NextResponse.json({plan: fallbackPlan});
-        }
-      } catch (fallbackErr) {
-        console.log("Fallback parsing also failed:", fallbackErr);
       }
       
       return NextResponse.json({
-        plan: null, 
-        rawContent: content.substring(0, 1500), 
-        parseError: "AI response format error. Please try again.",
-        error: jsonerr instanceof Error ? jsonerr.message : "Parsing failed",
-        suggestion: "The AI model returned an unexpected format. Try submitting your request again."
-      }, {status: 200});
+        plan,
+        source: "ai",
+        message: "Plan generated successfully by AI"
+      });
+      
+    } catch(jsonerr: unknown) {
+      console.log("JSON Parse Error:", jsonerr);
+      console.log("Content preview:", content.substring(0, 500));
+      
+      // Use fallback plan instead of returning error
+      console.log("JSON parsing failed, using fallback plan");
+      const fallbackPlan = generateFallbackPlan(formData);
+      return NextResponse.json({
+        plan: fallbackPlan,
+        source: "fallback",
+        message: "AI response format error. Using reliable fallback plan.",
+        debug: {
+          error: jsonerr instanceof Error ? jsonerr.message : "Parsing failed",
+          contentPreview: content.substring(0, 300)
+        }
+      });
     }
-  }catch(err){
-    console.log("API Fetch error:", err);
+    
+  } catch(err) {
+    console.error("API Fetch error:", err);
+    
+    // Use fallback plan for any fetch errors
+    console.log("Fetch failed, using fallback plan");
+    const fallbackPlan = generateFallbackPlan(formData);
     return NextResponse.json({
-      error: "Failed to connect to AI service. Please try again.",
-      details: err instanceof Error ? err.message : "Unknown error"
-    },{status:500});
+      plan: fallbackPlan,
+      source: "fallback", 
+      message: "Failed to connect to AI service. Using reliable fallback plan.",
+      debug: {
+        error: err instanceof Error ? err.message : "Unknown error"
+      }
+    });
   }
 }

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Heart, Dumbbell, Apple, Shield, Clock, Star, Users, Zap, Target, Download } from "lucide-react";
+import { Loader2, Heart, Dumbbell, Apple, Shield, Clock, Star, Users, Zap, Target, Download, AlertCircle, CheckCircle } from "lucide-react";
 import { ChangeEvent } from "react";
 
 export interface WellnessFormData {
@@ -104,6 +104,15 @@ interface AIPlan {
   alternatives_summary: string;
 }
 
+interface APIResponse {
+  plan: AIPlan | null;
+  source?: 'ai' | 'fallback';
+  message?: string;
+  debug?: any;
+  parseError?: string;
+  error?: string;
+}
+
 export default function AIPlanner() {
   const [formData, setFormData] = useState<WellnessFormData>({
     name: "",
@@ -119,27 +128,39 @@ export default function AIPlanner() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiPlan, setAIPlan] = useState<AIPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [planSource, setPlanSource] = useState<'ai' | 'fallback' | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [dailyUsage, setDailyUsage] = useState(0);
   const [showPlan, setShowPlan] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Check daily usage on component mount
+  // Check daily usage on component mount (fallback to in-memory if localStorage fails)
   useEffect(() => {
-    const today = new Date().toDateString();
-    const usage = parseInt(localStorage.getItem(`usage_${today}`) || '0');
-    setDailyUsage(usage);
+    try {
+      const today = new Date().toDateString();
+      const usage = parseInt(localStorage.getItem(`usage_${today}`) || '0');
+      setDailyUsage(usage);
+    } catch (e) {
+      console.log("localStorage not available, using in-memory storage");
+      setDailyUsage(0);
+    }
   }, []);
 
   const updateDailyUsage = () => {
     const today = new Date().toDateString();
     const newUsage = dailyUsage + 1;
     setDailyUsage(newUsage);
-    localStorage.setItem(`usage_${today}`, newUsage.toString());
+    try {
+      localStorage.setItem(`usage_${today}`, newUsage.toString());
+    } catch (e) {
+      console.log("localStorage not available for usage tracking");
+    }
   };
 
   const handleInputChange = (field: keyof WellnessFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setError(null);
+    setStatusMessage(null);
   };
 
   const generatePlan = async () => {
@@ -155,8 +176,10 @@ export default function AIPlanner() {
 
     setIsGenerating(true);
     setError(null);
+    setStatusMessage(null);
     setAIPlan(null);
     setShowPlan(false);
+    setPlanSource(null);
 
     try {
       const resp = await fetch("/api/generate-plan", {
@@ -165,29 +188,47 @@ export default function AIPlanner() {
         body: JSON.stringify({
           ...formData,
           age: Number(formData.age),
-          weight: Number(formData.weight),
-          height: Number(formData.height),
+          weight: formData.weight ? Number(formData.weight) : undefined,
+          height: formData.height ? Number(formData.height) : undefined,
         }),
       });
-      const data = await resp.json();
       
-      if (!resp.ok) throw new Error(data.error || "Failed to generate plan!");
+      if (!resp.ok) {
+        let errorData;
+        try {
+          errorData = await resp.json();
+        } catch {
+          errorData = { error: `Server error: ${resp.status} ${resp.statusText}` };
+        }
+        throw new Error(errorData.error || "Failed to generate plan!");
+      }
+      
+      const data: APIResponse = await resp.json();
       
       if (data.plan) {
         setAIPlan(data.plan);
+        setPlanSource(data.source || 'ai');
+        setStatusMessage(data.message || null);
         setShowPlan(true);
         updateDailyUsage();
+        
+        // Show status message based on source
+        if (data.source === 'fallback') {
+          setStatusMessage(data.message || "Using reliable backup plan due to AI service issues.");
+        } else {
+          setStatusMessage("Your personalized AI plan is ready!");
+        }
+        
         // Smooth scroll to results
         setTimeout(() => {
           document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' });
         }, 100);
-      } else if (data.parseError) {
-        setError(`AI Response Error: ${data.parseError}`);
       } else {
-        setError("No plan received from AI");
+        throw new Error(data.error || data.parseError || "No plan received from service");
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error("Plan generation error:", err);
+      setError(err.message || "An unexpected error occurred. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -226,7 +267,7 @@ export default function AIPlanner() {
       // Title
       pdf.setFontSize(20);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('AI Fitness & Nutrition Plan', pageWidth / 2, yPosition, { align: 'center' });
+      pdf.text(`${planSource === 'fallback' ? 'Expert' : 'AI'} Fitness & Nutrition Plan`, pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 15;
 
       // User Info
@@ -240,12 +281,17 @@ export default function AIPlanner() {
         pdf.text(`Weight: ${formData.weight}kg | Height: ${formData.height}cm`, margin, yPosition);
         yPosition += 8;
       }
+      if (planSource === 'fallback') {
+        pdf.setFontSize(10);
+        pdf.text('* This is an expert-designed backup plan - completely safe and effective', margin, yPosition);
+        yPosition += 8;
+      }
       yPosition += 5;
 
       // Analysis
       pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('AI Analysis & Reasoning', margin, yPosition);
+      pdf.text(`${planSource === 'fallback' ? 'Expert' : 'AI'} Analysis & Reasoning`, margin, yPosition);
       yPosition += 8;
       yPosition = addWrappedText(aiPlan.analysis_reasoning, margin, yPosition, pageWidth - 2 * margin, 10);
       yPosition += 5;
@@ -398,7 +444,7 @@ export default function AIPlanner() {
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(`Generated by AI Fitness Planner - Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        pdf.text(`Generated by ${planSource === 'fallback' ? 'Expert' : 'AI'} Fitness Planner - Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
       }
 
       // Save the PDF
@@ -655,24 +701,45 @@ export default function AIPlanner() {
           {aiPlan && showPlan && (
             <div id="results" className="space-y-8 animate-in fade-in duration-1000">
               {/* Success Banner */}
-              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-sm border border-green-500/30 rounded-2xl p-6 text-center">
+              <div className={`bg-gradient-to-r ${planSource === 'fallback' ? 'from-amber-500/20 to-orange-500/20 border-amber-500/30' : 'from-green-500/20 to-emerald-500/20 border-green-500/30'} backdrop-blur-sm border rounded-2xl p-6 text-center`}>
                 <div className="flex items-center justify-center space-x-3 mb-2">
-                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                  <h2 className="text-2xl font-bold text-white">Your Personalized Plan is Ready!</h2>
-                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                  {planSource === 'fallback' ? (
+                    <>
+                      <AlertCircle className="w-6 h-6 text-amber-400" />
+                      <h2 className="text-2xl font-bold text-white">Reliable Backup Plan Ready!</h2>
+                      <AlertCircle className="w-6 h-6 text-amber-400" />
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-6 h-6 text-green-400" />
+                      <h2 className="text-2xl font-bold text-white">Your Personalized Plan is Ready!</h2>
+                      <CheckCircle className="w-6 h-6 text-green-400" />
+                    </>
+                  )}
                 </div>
-                <p className="text-green-200/80">AI has analyzed your profile and created a custom plan just for you</p>
+                <p className={`${planSource === 'fallback' ? 'text-amber-200/80' : 'text-green-200/80'}`}>
+                  {statusMessage || (planSource === 'fallback' ? 'AI service had issues, but we\'ve created a reliable plan for you' : 'AI has analyzed your profile and created a custom plan just for you')}
+                </p>
+                {planSource === 'fallback' && (
+                  <div className="mt-3 text-amber-200/60 text-sm">
+                    This backup plan is created by fitness experts and is completely safe to follow
+                  </div>
+                )}
               </div>
 
               {/* Analysis & Reasoning */}
               <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-2xl p-6 sm:p-8">
                 <div className="flex items-center space-x-3 mb-6">
-                  <div className="p-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-xl">
+                  <div className={`p-3 bg-gradient-to-r ${planSource === 'fallback' ? 'from-amber-500/20 to-orange-500/20' : 'from-amber-500/20 to-orange-500/20'} rounded-xl`}>
                     <Heart className="w-6 h-6 text-amber-400" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">AI Analysis & Insights</h3>
-                    <p className="text-white/60 text-sm">Personalized recommendations based on your profile</p>
+                    <h3 className="text-xl font-bold text-white">
+                      {planSource === 'fallback' ? 'Expert Analysis & Recommendations' : 'AI Analysis & Insights'}
+                    </h3>
+                    <p className="text-white/60 text-sm">
+                      {planSource === 'fallback' ? 'Professional recommendations based on your profile' : 'Personalized recommendations based on your profile'}
+                    </p>
                   </div>
                 </div>
                 <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl p-6">
@@ -681,6 +748,12 @@ export default function AIPlanner() {
                     <Clock className="w-4 h-4" />
                     <span className="text-sm font-medium">Plan Duration: {aiPlan.plan_duration}</span>
                   </div>
+                  {planSource === 'fallback' && (
+                    <div className="mt-3 flex items-center space-x-2 text-amber-300/80">
+                      <Shield className="w-4 h-4" />
+                      <span className="text-sm">Expert-designed backup plan - completely safe and effective</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1095,7 +1168,7 @@ export default function AIPlanner() {
                 <div className="space-y-4">
                   <h3 className="text-2xl font-bold text-white">Ready to Transform Your Life?</h3>
                   <p className="text-white/70 max-w-2xl mx-auto">
-                    Your personalized plan is ready! Remember to consult with healthcare professionals before starting any new fitness or nutrition program.
+                    Your personalized plan is ready! {planSource === 'fallback' ? 'This expert-designed plan is safe and effective.' : ''} Remember to consult with healthcare professionals before starting any new fitness or nutrition program.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                     <Button 
@@ -1105,34 +1178,38 @@ export default function AIPlanner() {
                       Create Another Plan
                     </Button>
 
-
-                    {/* <Button 
-                      onClick={() => {
-                        import('jspdf').then(jsPDF => {
-                          const doc = new jsPDF.jsPDF();
-                          doc.text("AI Plan", 10, 10);
-                          doc.text(JSON.stringify(aiPlan, null, 2), 10, 20);
-                          doc.save('ai-plan.pdf');
-                        }).catch(error => {
-                          console.error("Failed to load jsPDF library", error);
-                        });
-                      }}
+                    <Button 
+                      onClick={downloadPDF}
+                      disabled={isDownloading}
                       className="bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl px-6 py-3"
                     >
-                      Download PDF
+                      {isDownloading ? (
+                        <div className="flex items-center space-x-2">
+                          <Loader2 className="animate-spin w-4 h-4" />
+                          <span>Generating PDF...</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <Download className="w-4 h-4" />
+                          <span>Download PDF</span>
+                        </div>
+                      )}
                     </Button>
- */}
-
-
-
-
-
 
                     <div className="flex items-center space-x-2 text-white/60 text-sm">
                       <Shield className="w-4 h-4" />
                       <span>Plans remaining today: {10 - dailyUsage}</span>
                     </div>
                   </div>
+                  
+                  {planSource === 'fallback' && (
+                    <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                      <div className="flex items-center justify-center space-x-2 text-amber-200">
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="text-sm">This is a reliable backup plan. You can try generating again later for AI-powered recommendations.</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

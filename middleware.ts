@@ -9,7 +9,8 @@ export async function middleware(request: NextRequest) {
   const publicRoutes = [
     "/",
     "/trainers",
-    "/astrology", 
+    "/astrology",
+    "/pricing-details",
     "/api/auth/login",
     "/api/trainers/auth",
     "/api/upload",
@@ -39,17 +40,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // AI Planner protection - only accessible by super admin
+  // AI Planner - make it publicly accessible
   if (pathname.startsWith("/ai-planner")) {
-    try {
-      const user = await authenticateRequest(request)
-      if (!user || user.role !== "super_admin") {
-        return NextResponse.redirect(new URL("/admin/login", request.url))
-      }
-    } catch (error) {
-      console.error("AI Planner authentication error:", error)
-      return NextResponse.redirect(new URL("/admin/login", request.url))
-    }
+    return NextResponse.next()
   }
 
   // Trainer routes protection
