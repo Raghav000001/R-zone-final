@@ -35,77 +35,89 @@ setInterval(()=>{
   }
 }, 60*60*1000);
 
-// Enhanced JSON extraction function with multiple fallback strategies
+// Enhanced JSON extraction function with better error handling
 function extractJSON(content: string): any {
   console.log("Raw content length:", content.length);
   console.log("First 200 chars:", content.substring(0, 200));
   console.log("Last 200 chars:", content.substring(content.length - 200));
-
-  // Remove <think> tags and their content
-  content = content.replace(/<think>[\s\S]*?<\/think>/gi, '');
   
-  // Remove any remaining think tags (unclosed)
-  content = content.replace(/<think>[\s\S]*/gi, '');
+  // Step 1: Remove all thinking tags and content between them
+  if (content.includes('<think>')) {
+    console.log("Found <think> tags in content - removing them");
+    // Remove everything between <think> and </think> including the tags
+    content = content.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    // Also handle unclosed think tags by removing everything before the first {
+    content = content.replace(/<think>[\s\S]*?(?=\{)/gi, '');
+    // Remove any remaining think tags
+    content = content.replace(/<\/?think>/gi, '');
+  }
+  
+  // Step 2: Clean up the content
+  content = content.trim();
   
   // Remove markdown code blocks
   content = content.replace(/```json\s*/gi, '');
   content = content.replace(/```\s*/gi, '');
   
-  // Remove any leading/trailing whitespace
-  content = content.trim();
+  // Remove any text before the first opening brace
+  const firstBraceIndex = content.indexOf('{');
+  if (firstBraceIndex > 0) {
+    content = content.substring(firstBraceIndex);
+  }
   
-  // Strategy 1: Look for the largest JSON object
-  const jsonMatches = content.match(/\{[\s\S]*?\}/g);
-  if (jsonMatches && jsonMatches.length > 0) {
-    // Sort by length, try the longest first
-    const sortedMatches = jsonMatches.sort((a, b) => b.length - a.length);
+  // Find the last closing brace and remove everything after it
+  const lastBraceIndex = content.lastIndexOf('}');
+  if (lastBraceIndex !== -1 && lastBraceIndex < content.length - 1) {
+    content = content.substring(0, lastBraceIndex + 1);
+  }
+  
+  console.log("After cleaning, content length:", content.length);
+  console.log("First 200 chars after cleaning:", content.substring(0, 200));
+  
+  // Step 3: Try to fix common JSON issues
+  content = content
+    .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
+    .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
+    .replace(/\n\s*\n/g, '\n') // Remove multiple newlines
+    .replace(/([{,]\s*)(\w+):/g, '$1"$2":') // Add quotes to unquoted keys
+    .trim();
+  
+  // Step 4: Try to parse the cleaned JSON
+  if (!content.startsWith('{') || !content.endsWith('}')) {
+    throw new Error(`Content doesn't look like JSON object. Starts with: ${content.substring(0, 50)}, Ends with: ${content.substring(content.length - 50)}`);
+  }
+  
+  try {
+    const parsed = JSON.parse(content);
     
-    for (const match of sortedMatches) {
+    // Validate it's a workout plan (has expected structure)
+    if (parsed && typeof parsed === 'object' && 
+        (parsed.analysis_reasoning || parsed.workout_days || parsed.nutrition_plan)) {
+      console.log("Successfully parsed valid plan JSON");
+      return parsed;
+    } else {
+      throw new Error("Parsed JSON doesn't contain expected workout plan structure");
+    }
+  } catch (parseError) {
+    console.error("JSON Parse Error:", parseError);
+    console.log("Problematic content:", content.substring(0, 1000));
+    
+    // Step 5: Last resort - try to extract valid JSON using regex
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
       try {
-        const parsed = JSON.parse(match);
-        // Validate it's a workout plan (has expected structure)
-        if (parsed.analysis_reasoning || parsed.workout_days || parsed.nutrition_plan) {
-          console.log("Successfully found valid plan JSON");
-          return parsed;
+        const lastAttempt = JSON.parse(jsonMatch[0]);
+        if (lastAttempt && typeof lastAttempt === 'object') {
+          console.log("Successfully extracted JSON using regex fallback");
+          return lastAttempt;
         }
-      } catch (e) {
-        console.log("Failed to parse match:", match.substring(0, 100));
-        continue;
+      } catch (regexError) {
+        console.error("Regex fallback also failed:", regexError);
       }
     }
+    
+    throw new Error(`Failed to parse JSON: ${parseError}. Content preview: ${content.substring(0, 500)}`);
   }
-  
-  // Strategy 2: Try to find JSON between specific markers
-  const betweenBraces = content.match(/\{[\s\S]*\}/);
-  if (betweenBraces) {
-    try {
-      const parsed = JSON.parse(betweenBraces[0]);
-      if (typeof parsed === 'object' && parsed !== null) {
-        return parsed;
-      }
-    } catch (e) {
-      console.log("Strategy 2 failed:", e);
-    }
-  }
-  
-  // Strategy 3: Clean up common issues and try again
-  let cleanContent = content
-    .replace(/^[^{]*/, '') // Remove everything before first {
-    .replace(/[^}]*$/, '') // Remove everything after last }
-    .replace(/\n\s*\n/g, '\n') // Remove empty lines
-    .replace(/,\s*}/g, '}') // Remove trailing commas
-    .replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
-  
-  if (cleanContent.startsWith('{') && cleanContent.endsWith('}')) {
-    try {
-      return JSON.parse(cleanContent);
-    } catch (e) {
-      console.log("Strategy 3 failed:", e);
-    }
-  }
-  
-  // If all strategies fail, throw with detailed info
-  throw new Error(`Could not extract valid JSON. Content preview: ${content.substring(0, 500)}`);
 }
 
 // Fallback plan generator for when AI fails
@@ -384,10 +396,16 @@ export async function POST(req: NextRequest) {
     bmiInfo = `BMI: ${bmi.toFixed(1)} (${bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese'})`;
   }
 
-  // Simplified system prompt for better JSON compliance
-  const systemPrompt = `You are an expert Indian fitness and nutrition specialist. 
+  // Updated system prompt to prevent thinking tags and ensure clean JSON
+  const systemPrompt = `You are an expert Indian fitness and nutrition specialist.
 
-CRITICAL: Your response must be ONLY a valid JSON object. Start with { and end with }. No other text, explanations, or markdown.
+CRITICAL RESPONSE RULES:
+1. NEVER use <think> tags or any thinking process in your response
+2. Your response must be ONLY a valid JSON object
+3. Start immediately with { and end with }
+4. No explanations, markdown, or additional text
+5. Ensure all strings are properly quoted and escaped
+6. No trailing commas in objects or arrays
 
 AGE-SPECIFIC GUIDELINES:
 ${exerciseGuidelines}
@@ -395,7 +413,7 @@ ${exerciseGuidelines}
 INTENSITY: ${intensityLevel}
 EXERCISE COUNT: ${exerciseCount}
 
-Create a JSON response with this EXACT structure:
+Return ONLY this JSON structure (no other text):
 {
   "analysis_reasoning": "string",
   "plan_duration": "string", 
@@ -407,15 +425,13 @@ Create a JSON response with this EXACT structure:
   "progression": "string",
   "precautions": ["string"],
   "alternatives_summary": "string"
-}
+}`;
 
-RESPOND WITH ONLY THE JSON OBJECT.`;
+  const userPrompt = `User Profile: ${userAnalysis} ${bmiInfo ? `${bmiInfo}` : ''}
 
-  const userPrompt = `Create plan for: ${userAnalysis} ${bmiInfo ? `${bmiInfo}` : ''}
+Age: ${age} years, Activity Level: ${formData.lifestyle || 'Not specified'}, Exercise Count: ${exerciseCount}
 
-Age: ${age} years, Activity: ${formData.lifestyle || 'Not specified'}, Exercise count: ${exerciseCount}
-
-JSON only. No explanations.`;
+Return only the JSON object, no thinking, no explanations.`;
 
   // 5. Perplexity API Call with better error handling
   const payload = {
@@ -424,9 +440,9 @@ JSON only. No explanations.`;
       {role:"system", content:systemPrompt},
       {role:"user", content:userPrompt}
     ],
-    max_tokens: 4000,
-    temperature: 0.3, // Lower temperature for more consistent formatting
-    top_p: 0.8,      
+    max_tokens: 5000, // Increased to ensure complete response
+    temperature: 0.1, // Very low temperature for consistent formatting
+    top_p: 0.9,      
     stream: false
   };
 
@@ -484,9 +500,12 @@ JSON only. No explanations.`;
       
       // Additional validation for age-appropriate content
       if (age >= 60) {
-        const hasHeavyExercises = JSON.stringify(plan).toLowerCase().includes('chest press') || 
-                                 JSON.stringify(plan).toLowerCase().includes('leg press') ||
-                                 JSON.stringify(plan).toLowerCase().includes('weights');
+        const planStr = JSON.stringify(plan).toLowerCase();
+        const hasHeavyExercises = planStr.includes('chest press') || 
+                                 planStr.includes('leg press') ||
+                                 planStr.includes('weights') ||
+                                 planStr.includes('bench press') ||
+                                 planStr.includes('deadlift');
         
         if (hasHeavyExercises) {
           console.log("Warning: Plan contains heavy exercises for senior user, using fallback");
