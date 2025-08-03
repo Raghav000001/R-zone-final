@@ -433,15 +433,15 @@ Age: ${age} years, Activity Level: ${formData.lifestyle || 'Not specified'}, Exe
 
 Return only the JSON object, no thinking, no explanations.`;
 
-  // 5. Perplexity API Call with optimized settings for faster response
+  // 5. Perplexity API Call with settings optimized for quality over speed
   const payload = {
-    model: "sonar-medium-online", // Faster model
+    model: "sonar-pro", // Use the more capable model
     messages: [
       {role:"system", content:systemPrompt},
       {role:"user", content:userPrompt}
     ],
-    max_tokens: 3000, // Reduced for faster response
-    temperature: 0.1, // Very low temperature for consistent formatting
+    max_tokens: 4000, // Allow more tokens for complete plans
+    temperature: 0.3, // Slightly higher for better creativity
     top_p: 0.9,      
     stream: false
   };
@@ -449,9 +449,9 @@ Return only the JSON object, no thinking, no explanations.`;
   try {
     console.log("Making API request to Perplexity...");
     
-    // Create AbortController for timeout
+    // Create AbortController for timeout - increased for production
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout for production
     
     const resp = await fetch("https://api.perplexity.ai/chat/completions",{
       method:'POST',
@@ -469,14 +469,11 @@ Return only the JSON object, no thinking, no explanations.`;
       const errTxt = await resp.text();
       console.error("Perplexity API error:", resp.status, resp.statusText, errTxt);
       
-      // Return fallback plan instead of error
-      console.log("API failed, using fallback plan");
-      const fallbackPlan = generateFallbackPlan(formData);
+      // Return actual error instead of fallback
       return NextResponse.json({
-        plan: fallbackPlan,
-        source: "fallback",
-        message: "AI service temporarily unavailable. Using reliable fallback plan."
-      });
+        error: `AI service error: ${resp.statusText}. Please try again.`,
+        details: errTxt
+      }, { status: resp.status });
     }
     
     const data = await resp.json();
@@ -485,13 +482,11 @@ Return only the JSON object, no thinking, no explanations.`;
     console.log("Raw AI Response length:", content.length);
     
     if (!content || content.trim().length === 0) {
-      console.log("Empty response from AI, using fallback");
-      const fallbackPlan = generateFallbackPlan(formData);
+      console.log("Empty response from AI");
       return NextResponse.json({
-        plan: fallbackPlan,
-        source: "fallback",
-        message: "AI returned empty response. Using reliable fallback plan."
-      });
+        error: "AI service returned an empty response. Please try again.",
+        type: "empty_response"
+      }, { status: 500 });
     }
     
     // Try to extract and parse JSON
@@ -535,18 +530,12 @@ Return only the JSON object, no thinking, no explanations.`;
       console.log("JSON Parse Error:", jsonerr);
       console.log("Content preview:", content.substring(0, 500));
       
-      // Use fallback plan instead of returning error
-      console.log("JSON parsing failed, using fallback plan");
-      const fallbackPlan = generateFallbackPlan(formData);
+      // Return parsing error instead of fallback
       return NextResponse.json({
-        plan: fallbackPlan,
-        source: "fallback",
-        message: "AI response format error. Using reliable fallback plan.",
-        debug: {
-          error: jsonerr instanceof Error ? jsonerr.message : "Parsing failed",
-          contentPreview: content.substring(0, 300)
-        }
-      });
+        error: "AI response format error. Please try again.",
+        type: "parse_error",
+        details: jsonerr instanceof Error ? jsonerr.message : "Parsing failed"
+      }, { status: 500 });
     }
     
   } catch(err) {
@@ -554,29 +543,19 @@ Return only the JSON object, no thinking, no explanations.`;
     
     // Check if it's a timeout error
     if (err instanceof Error && err.name === 'AbortError') {
-      console.log("Request timed out, using fallback plan");
-      const fallbackPlan = generateFallbackPlan(formData);
+      console.log("Request timed out after 45 seconds");
       return NextResponse.json({
-        plan: fallbackPlan,
-        source: "fallback", 
-        message: "AI service took too long to respond. Using reliable fallback plan.",
-        debug: {
-          error: "Request timeout (25 seconds)",
-          type: "timeout"
-        }
-      });
+        error: "AI service is taking longer than expected. Please try again in a moment.",
+        type: "timeout"
+      }, { status: 408 }); // Request Timeout status
     }
     
-    // Use fallback plan for any other fetch errors
-    console.log("Fetch failed, using fallback plan");
-    const fallbackPlan = generateFallbackPlan(formData);
+    // Return actual error for other fetch errors
+    console.log("Fetch failed");
     return NextResponse.json({
-      plan: fallbackPlan,
-      source: "fallback", 
-      message: "Failed to connect to AI service. Using reliable fallback plan.",
-      debug: {
-        error: err instanceof Error ? err.message : "Unknown error"
-      }
-    });
+      error: "Failed to connect to AI service. Please try again.",
+      type: "connection_error",
+      details: err instanceof Error ? err.message : "Unknown error"
+    }, { status: 500 });
   }
 }
