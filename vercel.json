@@ -4,9 +4,6 @@
   "framework": "nextjs",
   "functions": {
     "app/api/**/*.ts": {
-      "maxDuration": 30
-    },
-    "app/api/generate-plan/route.ts": {
       "maxDuration": 300
     }
   },

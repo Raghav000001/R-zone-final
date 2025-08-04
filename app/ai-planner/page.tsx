@@ -163,141 +163,76 @@ export default function AIPlanner() {
     setStatusMessage(null);
   };
 
- // Updated generatePlan function with extended timeouts and better error handling
-const generatePlan = async () => {
-  if (dailyUsage >= 10) {
-    setError("Daily limit of 10 plans reached. Try again tomorrow!");
-    return;
-  }
-
-  if (!formData.name || !formData.age || !formData.fitnessGoal) {
-    setError("Please fill in all required fields (Name, Age, Goal)");
-    return;
-  }
-
-  setIsGenerating(true);
-  setError(null);
-  setStatusMessage(null);
-  setAIPlan(null);
-  setShowPlan(false);
-  setPlanSource(null);
-
-  try {
-    console.log("Starting plan generation...");
-    
-    // Create AbortController with MUCH longer timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.log("Client timeout after 5 minutes");
-      controller.abort();
-    }, 300000); // 5 minutes client timeout
-    
-    // Show progress updates
-    let progressMessage = "AI is analyzing your profile...";
-    setStatusMessage(progressMessage);
-    
-    // Update progress messages during generation
-    const progressTimer = setInterval(() => {
-      const messages = [
-        "AI is analyzing your profile...",
-        "Creating personalized workout routine...",
-        "Designing your nutrition plan...",
-        "Finalizing recommendations...",
-        "Almost ready..."
-      ];
-      const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-      setStatusMessage(randomMessage);
-    }, 15000); // Update every 15 seconds
-    
-    const resp = await fetch("/api/generate-plan", {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        // Add keep-alive headers
-        "Connection": "keep-alive",
-        "Keep-Alive": "timeout=300"
-      },
-      body: JSON.stringify({
-        ...formData,
-        age: Number(formData.age),
-        weight: formData.weight ? Number(formData.weight) : undefined,
-        height: formData.height ? Number(formData.height) : undefined,
-      }),
-      signal: controller.signal,
-      // Ensure no cache interference
-      cache: 'no-cache'
-    });
-    
-    clearTimeout(timeoutId);
-    clearInterval(progressTimer);
-    
-    console.log("Response received:", resp.status, resp.statusText);
-    
-    if (!resp.ok) {
-      let errorData;
-      try {
-        errorData = await resp.json();
-      } catch {
-        errorData = { error: `Server error: ${resp.status} ${resp.statusText}` };
-      }
-      
-      // Handle specific error types
-      if (resp.status === 408) {
-        throw new Error("The AI service is taking longer than expected due to high demand. Please wait a moment and try again.");
-      } else if (resp.status === 504) {
-        throw new Error("Gateway timeout - the AI service is overloaded. Please try again in a few minutes.");
-      } else if (resp.status === 429) {
-        throw new Error(errorData.error || "Rate limit exceeded. Please wait before trying again.");
-      } else {
-        throw new Error(errorData.error || `Server error: ${resp.status}`);
-      }
+  const generatePlan = async () => {
+    if (dailyUsage >= 10) {
+      setError("Daily limit of 10 plans reached. Try again tomorrow!");
+      return;
     }
-    
-    const data: APIResponse = await resp.json();
-    console.log("Data received:", !!data.plan, data.source);
-    
-    if (data.plan) {
-      setAIPlan(data.plan);
-      setPlanSource(data.source || 'ai');
-      setShowPlan(true);
-      updateDailyUsage();
-      
-      // Show success message
-      if (data.source === 'fallback') {
-        setStatusMessage("AI had issues, but we created a reliable backup plan for you!");
-      } else {
-        setStatusMessage("Your personalized AI plan is ready! 🎉");
-      }
-      
-      // Smooth scroll to results
-      setTimeout(() => {
-        document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    } else {
-      throw new Error(data.error || "No plan received from service");
+
+    if (!formData.name || !formData.age || !formData.fitnessGoal) {
+      setError("Please fill in all required fields (Name, Age, Goal)");
+      return;
     }
-    
-  } catch (err: any) {
-    console.error("Plan generation error:", err);
-    // clearInterval(progressTimer);
-    
-    // Handle different error types with user-friendly messages
-    if (err.name === 'AbortError') {
-      setError("The request timed out. The AI service might be experiencing high demand. Please try again in a few minutes.");
-    } else if (err.message.includes('504') || err.message.includes('Gateway timeout')) {
-      setError("Gateway timeout error. The AI service is overloaded. Please wait 2-3 minutes and try again.");
-    } else if (err.message.includes('timeout')) {
-      setError("Request timeout. The AI service is taking longer than expected. Please try again.");
-    } else if (err.message.includes('Failed to fetch')) {
-      setError("Network error. Please check your internet connection and try again.");
-    } else {
-      setError(err.message || "An unexpected error occurred. Please try again.");
-    }
-  } finally {
-    setIsGenerating(false);
+
+    setIsGenerating(true);
+    setError(null);
     setStatusMessage(null);
-  }
-};
+    setAIPlan(null);
+    setShowPlan(false);
+    setPlanSource(null);
+
+    try {
+      const resp = await fetch("/api/generate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          age: Number(formData.age),
+          weight: formData.weight ? Number(formData.weight) : undefined,
+          height: formData.height ? Number(formData.height) : undefined,
+        }),
+      });
+      
+      if (!resp.ok) {
+        let errorData;
+        try {
+          errorData = await resp.json();
+        } catch {
+          errorData = { error: `Server error: ${resp.status} ${resp.statusText}` };
+        }
+        throw new Error(errorData.error || "Failed to generate plan!");
+      }
+      
+      const data: APIResponse = await resp.json();
+      
+      if (data.plan) {
+        setAIPlan(data.plan);
+        setPlanSource(data.source || 'ai');
+        setStatusMessage(data.message || null);
+        setShowPlan(true);
+        updateDailyUsage();
+        
+        // Show status message based on source
+        if (data.source === 'fallback') {
+          setStatusMessage(data.message || "Using reliable backup plan due to AI service issues.");
+        } else {
+          setStatusMessage("Your personalized AI plan is ready!");
+        }
+        
+        // Smooth scroll to results
+        setTimeout(() => {
+          document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      } else {
+        throw new Error(data.error || data.parseError || "No plan received from service");
+      }
+    } catch (err: any) {
+      console.error("Plan generation error:", err);
+      setError(err.message || "An unexpected error occurred. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const downloadPDF = async () => {
     if (!aiPlan) return;
@@ -741,7 +676,7 @@ const generatePlan = async () => {
                 {isGenerating ? (
                   <div className="flex items-center space-x-3">
                     <Loader2 className="animate-spin w-5 h-5" />
-                    <span>AI is creating your personalized plan (this may take up to 2 minutes)...</span>
+                    <span>Creating Your Plan...</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-3">
