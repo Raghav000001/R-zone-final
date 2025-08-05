@@ -275,7 +275,7 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="text-2xl font-bold text-white">₹{stats.totalRevenue.toLocaleString()}</div>
               <p className="text-xs text-gray-400">
-                All time earnings
+                Revenue this month
               </p>
             </CardContent>
           </Card>
@@ -398,10 +398,7 @@ export default function AdminDashboard() {
                   <span className="text-gray-300">Expired Members</span>
                   <Badge className="bg-red-600 text-white">{stats.expiredMembers}</Badge>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Monthly Revenue</span>
-                  <span className="text-white font-semibold">₹{stats.monthlyRevenue.toLocaleString()}</span>
-                </div>
+               
               </div>
             </CardContent>
           </Card>

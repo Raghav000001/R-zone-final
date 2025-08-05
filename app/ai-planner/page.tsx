@@ -248,63 +248,186 @@ export default function AIPlanner() {
       const margin = 20;
       let yPosition = margin;
 
+      // Helper function to safely clean text and handle special characters
+      const cleanText = (text: string | undefined | null): string => {
+        if (!text) return '';
+        return text.toString().replace(/[^\x20-\x7E\u00A0-\u00FF]/g, '').trim();
+      };
+
       // Helper function to add text with word wrapping
       const addWrappedText = (text: string, x: number, y: number, maxWidth: number, fontSize: number = 10): number => {
+        const cleanedText = cleanText(text);
+        if (!cleanedText) return y;
+        
         pdf.setFontSize(fontSize);
-        const lines = pdf.splitTextToSize(text, maxWidth);
+        const lines = pdf.splitTextToSize(cleanedText, maxWidth);
         
         for (let i = 0; i < lines.length; i++) {
           // Check if we need a new page
-          if (y + (i * 5) > pageHeight - margin) {
+          if (y + (i * 6) > pageHeight - margin) {
             pdf.addPage();
             y = margin;
           }
-          pdf.text(lines[i], x, y + (i * 5));
+          pdf.text(lines[i], x, y + (i * 6));
         }
-        return y + (lines.length * 5) + 3;
+        return y + (lines.length * 6) + 5;
+      };
+
+      // Helper function to add a section header
+      const addSectionHeader = (title: string): number => {
+        if (yPosition > pageHeight - 30) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(title, margin, yPosition);
+        yPosition += 12;
+        return yPosition;
       };
 
       // Title
-      pdf.setFontSize(20);
+      pdf.setFontSize(22);
       pdf.setFont('helvetica', 'bold');
-      pdf.text(`${planSource === 'fallback' ? 'Expert' : 'AI'} Fitness & Nutrition Plan`, pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 15;
+      const title = `${planSource === 'fallback' ? 'Expert' : 'AI'} Fitness & Nutrition Plan`;
+      pdf.text(title, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 20;
 
       // User Info
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(`Name: ${formData.name}`, margin, yPosition);
+      pdf.text(`Name: ${cleanText(formData.name)}`, margin, yPosition);
       yPosition += 8;
-      pdf.text(`Age: ${formData.age} | Goal: ${formData.fitnessGoal}`, margin, yPosition);
+      pdf.text(`Age: ${cleanText(formData.age)} | Goal: ${cleanText(formData.fitnessGoal)}`, margin, yPosition);
       yPosition += 8;
+      
       if (formData.weight && formData.height) {
-        pdf.text(`Weight: ${formData.weight}kg | Height: ${formData.height}cm`, margin, yPosition);
+        pdf.text(`Weight: ${cleanText(formData.weight)}kg | Height: ${cleanText(formData.height)}cm`, margin, yPosition);
         yPosition += 8;
       }
+      
       if (planSource === 'fallback') {
         pdf.setFontSize(10);
+        pdf.setTextColor(100, 100, 100);
         pdf.text('* This is an expert-designed backup plan - completely safe and effective', margin, yPosition);
+        pdf.setTextColor(0, 0, 0);
         yPosition += 8;
       }
-      yPosition += 5;
+      yPosition += 10;
 
       // Analysis
-      pdf.setFontSize(14);
+      yPosition = addSectionHeader('Analysis & Reasoning');
+      yPosition = addWrappedText(aiPlan.analysis_reasoning, margin, yPosition, pageWidth - 2 * margin, 11);
+      yPosition += 10;
+
+      // Plan Duration
+      pdf.setFontSize(11);
       pdf.setFont('helvetica', 'bold');
-      pdf.text(`${planSource === 'fallback' ? 'Expert' : 'AI'} Analysis & Reasoning`, margin, yPosition);
-      yPosition += 8;
-      yPosition = addWrappedText(aiPlan.analysis_reasoning, margin, yPosition, pageWidth - 2 * margin, 10);
-      yPosition += 5;
+      pdf.text(`Plan Duration: ${cleanText(aiPlan.plan_duration)}`, margin, yPosition);
+      yPosition += 15;
 
       // Workout Plan
       if (aiPlan.workout_days && aiPlan.workout_days.length > 0) {
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Workout Plan', margin, yPosition);
-        yPosition += 10;
+        yPosition = addSectionHeader('Workout Plan');
 
         aiPlan.workout_days.forEach((workout, idx) => {
           // Check for new page
+          if (yPosition > pageHeight - 60) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+
+          pdf.setFontSize(13);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(`${cleanText(workout.name)} - ${cleanText(workout.focus)}`, margin, yPosition);
+          yPosition += 8;
+
+          if (workout.reasoning) {
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'italic');
+            yPosition = addWrappedText(workout.reasoning, margin, yPosition, pageWidth - 2 * margin, 10);
+            yPosition += 5;
+          }
+
+          workout.exercises.forEach((exercise, i) => {
+            if (yPosition > pageHeight - 40) {
+              pdf.addPage();
+              yPosition = margin;
+            }
+
+            pdf.setFontSize(11);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`${i + 1}. ${cleanText(exercise.name)}`, margin + 5, yPosition);
+            yPosition += 6;
+            
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(10);
+            pdf.text(`Sets/Reps: ${cleanText(exercise.prescription)} | Rest: ${cleanText(exercise.rest)}`, margin + 10, yPosition);
+            yPosition += 6;
+            
+            if (exercise.reasoning) {
+              yPosition = addWrappedText(`Why: ${exercise.reasoning}`, margin + 10, yPosition, pageWidth - 2 * margin - 10, 9);
+            }
+            
+            if (exercise.alternatives && exercise.alternatives.length > 0) {
+              const alternatives = exercise.alternatives.map(alt => cleanText(alt)).join(', ');
+              yPosition = addWrappedText(`Alternatives: ${alternatives}`, margin + 10, yPosition, pageWidth - 2 * margin - 10, 9);
+            }
+            
+            yPosition += 8;
+          });
+          yPosition += 10;
+        });
+      }
+
+      // Cardio Plan
+      if (aiPlan.cardio_plan) {
+        yPosition = addSectionHeader('Cardio Plan');
+        
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Type: ${cleanText(aiPlan.cardio_plan.type)}`, margin, yPosition);
+        yPosition += 6;
+        pdf.text(`Frequency: ${cleanText(aiPlan.cardio_plan.frequency)}`, margin, yPosition);
+        yPosition += 6;
+        
+        if (aiPlan.cardio_plan.alternatives && aiPlan.cardio_plan.alternatives.length > 0) {
+          const alternatives = aiPlan.cardio_plan.alternatives.map(alt => cleanText(alt)).join(', ');
+          yPosition = addWrappedText(`Alternatives: ${alternatives}`, margin, yPosition, pageWidth - 2 * margin, 10);
+        }
+        
+        if (aiPlan.cardio_plan.reasoning) {
+          yPosition = addWrappedText(aiPlan.cardio_plan.reasoning, margin, yPosition, pageWidth - 2 * margin, 10);
+        }
+        yPosition += 10;
+      }
+
+      // Nutrition Plan
+      if (aiPlan.nutrition_plan) {
+        yPosition = addSectionHeader('Nutrition Plan');
+
+        // Macros
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Daily Macros:', margin, yPosition);
+        yPosition += 8;
+        
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'normal');
+        const macros = aiPlan.nutrition_plan.total_macros;
+        pdf.text(`Calories: ${cleanText(macros.calories)}`, margin + 5, yPosition);
+        yPosition += 6;
+        pdf.text(`Protein: ${cleanText(macros.protein)} | Carbs: ${cleanText(macros.carbs)} | Fats: ${cleanText(macros.fats)}`, margin + 5, yPosition);
+        yPosition += 15;
+
+        // Meals
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Daily Meal Plan:', margin, yPosition);
+        yPosition += 10;
+
+        Object.entries(aiPlan.nutrition_plan.meals).forEach(([mealTime, meal]: [string, any]) => {
           if (yPosition > pageHeight - 50) {
             pdf.addPage();
             yPosition = margin;
@@ -312,130 +435,131 @@ export default function AIPlanner() {
 
           pdf.setFontSize(12);
           pdf.setFont('helvetica', 'bold');
-          pdf.text(`${workout.name} - ${workout.focus}`, margin, yPosition);
+          pdf.text(`${mealTime.charAt(0).toUpperCase() + mealTime.slice(1)}:`, margin, yPosition);
           yPosition += 8;
 
-          workout.exercises.forEach((exercise, i) => {
-            if (yPosition > pageHeight - 30) {
-              pdf.addPage();
-              yPosition = margin;
-            }
+          pdf.setFontSize(11);
+          pdf.setFont('helvetica', 'bold');
+          const hindiName = cleanText(meal.hindi_name) || 'Traditional Indian Dish';
+          const englishName = cleanText(meal.english_name) || 'Nutritious Meal';
+          pdf.text(`${hindiName} (${englishName})`, margin + 5, yPosition);
+          yPosition += 8;
 
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'bold');
-            pdf.text(`${i + 1}. ${exercise.name}`, margin + 5, yPosition);
-            yPosition += 5;
-            
-            pdf.setFont('helvetica', 'normal');
-            pdf.text(`${exercise.prescription} | Rest: ${exercise.rest}`, margin + 10, yPosition);
-            yPosition += 5;
-            
-            yPosition = addWrappedText(exercise.reasoning, margin + 10, yPosition, pageWidth - 2 * margin - 10, 9);
-            yPosition += 3;
-          });
-          yPosition += 5;
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+          
+          if (meal.ingredients && meal.ingredients.length > 0) {
+            const ingredients = meal.ingredients.map((ing: string) => cleanText(ing)).filter(Boolean).join(', ');
+            if (ingredients) {
+              yPosition = addWrappedText(`Ingredients: ${ingredients}`, margin + 5, yPosition, pageWidth - 2 * margin - 5, 10);
+            }
+          }
+
+          if (meal.preparation) {
+            yPosition = addWrappedText(`Preparation: ${cleanText(meal.preparation)}`, margin + 5, yPosition, pageWidth - 2 * margin - 5, 10);
+          }
+
+          if (meal.reasoning) {
+            yPosition = addWrappedText(`Benefits: ${cleanText(meal.reasoning)}`, margin + 5, yPosition, pageWidth - 2 * margin - 5, 10);
+          }
+
+          yPosition += 10;
         });
       }
 
-      // Nutrition Plan
-      if (aiPlan.nutrition_plan) {
-        if (yPosition > pageHeight - 100) {
-          pdf.addPage();
-          yPosition = margin;
-        }
+      // Supplements
+      if (aiPlan.supplements && aiPlan.supplements.length > 0) {
+        yPosition = addSectionHeader('Supplements');
 
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Nutrition Plan', margin, yPosition);
-        yPosition += 10;
-
-        // Macros
-        pdf.setFontSize(11);
-        pdf.text('Daily Macros:', margin, yPosition);
-        yPosition += 6;
-        pdf.setFontSize(10);
-        const macros = aiPlan.nutrition_plan.total_macros;
-        pdf.text(`Calories: ${macros.calories} | Protein: ${macros.protein} | Carbs: ${macros.carbs} | Fats: ${macros.fats}`, margin + 5, yPosition);
-        yPosition += 10;
-
-        // Meals
-        Object.entries(aiPlan.nutrition_plan.meals).forEach(([mealTime, meal]: [string, any]) => {
-          if (yPosition > pageHeight - 40) {
+        aiPlan.supplements.forEach((supplement, i) => {
+          if (yPosition > pageHeight - 30) {
             pdf.addPage();
             yPosition = margin;
           }
 
           pdf.setFontSize(11);
           pdf.setFont('helvetica', 'bold');
-          pdf.text(`${mealTime.charAt(0).toUpperCase() + mealTime.slice(1)}:`, margin, yPosition);
+          pdf.text(`${i + 1}. ${cleanText(supplement.name)}`, margin, yPosition);
           yPosition += 6;
 
-          pdf.setFontSize(10);
           pdf.setFont('helvetica', 'normal');
-          pdf.text(`${meal.hindi_name} (${meal.english_name})`, margin + 5, yPosition);
-          yPosition += 5;
+          pdf.setFontSize(10);
+          pdf.text(`Dosage: ${cleanText(supplement.dosage)} | Timing: ${cleanText(supplement.timing)}`, margin + 5, yPosition);
+          yPosition += 6;
 
-          pdf.text(`Ingredients: ${meal.ingredients.join(', ')}`, margin + 5, yPosition);
-          yPosition += 5;
+          if (supplement.reasoning) {
+            yPosition = addWrappedText(`Benefits: ${cleanText(supplement.reasoning)}`, margin + 5, yPosition, pageWidth - 2 * margin - 5, 10);
+          }
 
-          yPosition = addWrappedText(`Preparation: ${meal.preparation}`, margin + 5, yPosition, pageWidth - 2 * margin - 5, 9);
-          yPosition += 5;
+          if (supplement.alternatives && supplement.alternatives.length > 0) {
+            const alternatives = supplement.alternatives.map(alt => cleanText(alt)).filter(Boolean).join(', ');
+            if (alternatives) {
+              yPosition = addWrappedText(`Natural Alternatives: ${alternatives}`, margin + 5, yPosition, pageWidth - 2 * margin - 5, 10);
+            }
+          }
+
+          yPosition += 10;
         });
       }
 
-      // Supplements
-      if (aiPlan.supplements && aiPlan.supplements.length > 0) {
-        if (yPosition > pageHeight - 50) {
-          pdf.addPage();
-          yPosition = margin;
-        }
+      // Lifestyle Recommendations
+      if (aiPlan.lifestyle_recommendations && aiPlan.lifestyle_recommendations.length > 0) {
+        yPosition = addSectionHeader('Lifestyle Recommendations');
 
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Supplements', margin, yPosition);
-        yPosition += 10;
-
-        aiPlan.supplements.forEach((supplement, i) => {
-          if (yPosition > pageHeight - 25) {
+        aiPlan.lifestyle_recommendations.forEach((rec: LifestyleRecommendation, i: number) => {
+          if (yPosition > pageHeight - 40) {
             pdf.addPage();
             yPosition = margin;
           }
 
-          pdf.setFontSize(10);
+          pdf.setFontSize(12);
           pdf.setFont('helvetica', 'bold');
-          pdf.text(`${i + 1}. ${supplement.name}`, margin, yPosition);
-          yPosition += 5;
-
-          pdf.setFont('helvetica', 'normal');
-          pdf.text(`Dosage: ${supplement.dosage} | Timing: ${supplement.timing}`, margin + 5, yPosition);
-          yPosition += 5;
-
-          yPosition = addWrappedText(supplement.reasoning, margin + 5, yPosition, pageWidth - 2 * margin - 5, 9);
+          pdf.text(`${cleanText(rec.category)}:`, margin, yPosition);
           yPosition += 8;
+
+          if (rec.recommendations && rec.recommendations.length > 0) {
+            rec.recommendations.forEach((recommendation, j) => {
+              if (yPosition > pageHeight - 20) {
+                pdf.addPage();
+                yPosition = margin;
+              }
+              yPosition = addWrappedText(`• ${cleanText(recommendation)}`, margin + 5, yPosition, pageWidth - 2 * margin - 5, 10);
+            });
+          }
+
+          if (rec.reasoning) {
+            yPosition = addWrappedText(`Why Important: ${cleanText(rec.reasoning)}`, margin + 5, yPosition, pageWidth - 2 * margin - 5, 10);
+          }
+
+          yPosition += 10;
         });
+      }
+
+      // Progression
+      if (aiPlan.progression) {
+        yPosition = addSectionHeader('Progression Plan');
+        yPosition = addWrappedText(aiPlan.progression, margin, yPosition, pageWidth - 2 * margin, 11);
+        yPosition += 10;
       }
 
       // Precautions
       if (aiPlan.precautions && aiPlan.precautions.length > 0) {
-        if (yPosition > pageHeight - 50) {
-          pdf.addPage();
-          yPosition = margin;
-        }
-
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Safety Precautions', margin, yPosition);
-        yPosition += 10;
+        yPosition = addSectionHeader('Safety Precautions');
 
         aiPlan.precautions.forEach((precaution, i) => {
           if (yPosition > pageHeight - 20) {
             pdf.addPage();
             yPosition = margin;
           }
-
-          yPosition = addWrappedText(`• ${precaution}`, margin, yPosition, pageWidth - 2 * margin, 10);
-          yPosition += 3;
+          yPosition = addWrappedText(`• ${cleanText(precaution)}`, margin, yPosition, pageWidth - 2 * margin, 10);
         });
+        yPosition += 10;
+      }
+
+      // Alternatives Summary
+      if (aiPlan.alternatives_summary) {
+        yPosition = addSectionHeader('Alternative Options');
+        yPosition = addWrappedText(aiPlan.alternatives_summary, margin, yPosition, pageWidth - 2 * margin, 11);
       }
 
       // Footer
@@ -444,11 +568,14 @@ export default function AIPlanner() {
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(128, 128, 128);
         pdf.text(`Generated by ${planSource === 'fallback' ? 'Expert' : 'AI'} Fitness Planner - Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        pdf.setTextColor(0, 0, 0);
       }
 
-      // Save the PDF
-      pdf.save(`${formData.name}_Fitness_Plan.pdf`);
+      // Save the PDF with a clean filename
+      const cleanName = cleanText(formData.name) || 'User';
+      pdf.save(`${cleanName}_Fitness_Plan.pdf`);
       
     } catch (error) {
       console.error('PDF generation error:', error);
@@ -457,6 +584,7 @@ export default function AIPlanner() {
       setIsDownloading(false);
     }
   };
+ 
 
   const MacroCard = ({ icon: Icon, title, value, color }: { icon: any, title: string, value: string, color: string }) => (
     <div className={`bg-gradient-to-br ${color} p-4 rounded-xl shadow-lg border border-white/10`}>
